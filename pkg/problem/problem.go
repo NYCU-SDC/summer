@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/NYCU-SDC/summer/pkg/database"
+	"github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -32,7 +33,7 @@ func WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *z
 	}
 
 	var problem Problem
-	var notFoundError NotFoundError
+	var notFoundError handler.NotFoundError
 	var validationErrors validator.ValidationErrors
 	var internalDbError database.InternalServerError
 	switch {
@@ -40,19 +41,19 @@ func WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *z
 		problem = NewNotFoundProblem(err.Error())
 	case errors.As(err, &validationErrors):
 		problem = NewValidateProblem(validationErrors.Error())
-	case errors.Is(err, ErrUserAlreadyExists):
+	case errors.Is(err, handler.ErrUserAlreadyExists):
 		problem = NewValidateProblem("User already exists")
-	case errors.Is(err, ErrCredentialInvalid):
+	case errors.Is(err, handler.ErrCredentialInvalid):
 		problem = NewUnauthorizedProblem("Invalid username or password")
-	case errors.Is(err, ErrForbidden):
+	case errors.Is(err, handler.ErrForbidden):
 		problem = NewForbiddenProblem("Make sure you have the right permissions")
-	case errors.Is(err, ErrUnauthorized):
+	case errors.Is(err, handler.ErrUnauthorized):
 		problem = NewUnauthorizedProblem("You must be logged in to access this resource")
-	case errors.Is(err, ErrInvalidUUID):
+	case errors.Is(err, handler.ErrInvalidUUID):
 		problem = NewValidateProblem(err.Error())
 	case errors.As(err, &internalDbError):
 		problem = NewInternalServerProblem("Internal server error")
-	case errors.Is(err, ErrInvalidUUID):
+	case errors.Is(err, handler.ErrInvalidUUID):
 		problem = NewValidateProblem("Invalid UUID format")
 	default:
 		problem = NewInternalServerProblem("Internal server error")

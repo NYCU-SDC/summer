@@ -3,6 +3,7 @@ package trace
 import (
 	"context"
 	"fmt"
+	"github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"go.opentelemetry.io/otel"
@@ -63,7 +64,7 @@ func RecoverMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) ht
 					}
 				}
 
-				problem.WriteError(context.Background(), w, problem.ErrInternalServer, logger)
+				problem.WriteError(context.Background(), w, handler.ErrInternalServer, logger)
 			}
 
 			span.End()
