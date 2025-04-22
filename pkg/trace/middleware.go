@@ -34,7 +34,7 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger) http.HandlerFunc
 		)
 		span.AddEvent("HTTPRequestStarted")
 
-		logger = log.WithContext(ctx, logger)
+		logger = logutil.WithContext(ctx, logger)
 		if upstream.HasTraceID() {
 			logger.Debug("Upstream trace available", zap.String("trace_id", upstream.TraceID().String()))
 		} else {
@@ -51,7 +51,7 @@ func RecoverMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) ht
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceCtx, span := tracer.Start(r.Context(), "RecoverMiddleware")
-		logger = log.WithContext(traceCtx, logger)
+		logger = logutil.WithContext(traceCtx, logger)
 
 		defer func() {
 			needRecovery, errString, caller := PanicRecoveryError(recover())
@@ -64,7 +64,7 @@ func RecoverMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) ht
 					}
 				}
 
-				problem.WriteError(context.Background(), w, handler.ErrInternalServer, logger)
+				problem.WriteError(context.Background(), w, handlerutil.ErrInternalServer, logger)
 			}
 
 			span.End()

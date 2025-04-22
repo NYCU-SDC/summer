@@ -1,11 +1,11 @@
-package config
+package configutil
 
 import (
 	"errors"
 	"reflect"
 )
 
-func Merge(base, override *any) (*any, error) {
+func Merge(base, override any) (any, error) {
 	if base == nil {
 		return nil, errors.New("base config cannot be nil")
 	}
@@ -13,7 +13,7 @@ func Merge(base, override *any) (*any, error) {
 		return base, nil
 	}
 
-	final := *base
+	final := base
 	baseVal := reflect.ValueOf(&final).Elem()
 	overrideVal := reflect.ValueOf(override).Elem()
 
