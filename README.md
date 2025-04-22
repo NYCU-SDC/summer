@@ -6,7 +6,6 @@
   - logger
   - trace
   - error
-  - jwt
   - handler
     - write json response and parse request
   - validator
