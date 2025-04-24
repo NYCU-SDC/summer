@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-func Merge(base, override any) (any, error) {
+func Merge[T any](base *T, override *T) (*T, error) {
 	if base == nil {
 		return nil, errors.New("base config cannot be nil")
 	}
@@ -14,7 +14,7 @@ func Merge(base, override any) (any, error) {
 	}
 
 	final := base
-	baseVal := reflect.ValueOf(&final).Elem()
+	baseVal := reflect.ValueOf(final).Elem()
 	overrideVal := reflect.ValueOf(override).Elem()
 
 	if baseVal.Type() != overrideVal.Type() {
@@ -31,5 +31,5 @@ func Merge(base, override any) (any, error) {
 		}
 	}
 
-	return &final, nil
+	return final, nil
 }
