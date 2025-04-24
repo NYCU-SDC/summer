@@ -35,24 +35,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&repoBranch, "branch", "b", defaultBranch, "Branch of the script repository")
 
 	// Initialize commands
-	rootCmd.AddCommand(helloCommand())
 	rootCmd.AddCommand(getScriptCommand())
-}
-
-func helloCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "hello ",
-		Short: "Say hello",
-		Long:  "Say hello to the user",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			name, _ := cmd.Flags().GetString("name")
-			return sayHello(name)
-		},
-	}
-
-	cmd.Flags().StringP("name", "n", "World", "Name to greet")
-
-	return cmd
 }
 
 func getScriptCommand() *cobra.Command {
@@ -131,11 +114,6 @@ func downloadScriptFromGit(repoURL, repoBranch, scriptPath, outputPath string) e
 		return fmt.Errorf("failed to write script to output: %w", err)
 	}
 
-	return nil
-}
-
-func sayHello(name string) error {
-	fmt.Printf("Hello, %s!\n", name)
 	return nil
 }
 
