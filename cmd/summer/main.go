@@ -1,12 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/spf13/cobra"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -49,6 +51,13 @@ func initCommand() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func getInput(prompt string) string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print(prompt)
+	input, _ := reader.ReadString('\n')
+	return strings.TrimSpace(input)
 }
 
 func getScriptCommand() *cobra.Command {
@@ -252,9 +261,17 @@ func downloadExampleFromGit(repoURL, repoBranch, examplePath, outputPath string)
 }
 
 func initFileStructure() error {
+	// create go.mod and go.sum
+	projectName := getInput("What is the projects name: ")
+	cmd := exec.Command("go", "mod", "init", projectName)
+	err := cmd.Run()
+	if err != nil {
+		return fmt.Errorf("failed to init go mod: %w", err)
+	}
+
 	// create main.go
-	if err := os.MkdirAll(filepath.Dir("./cmd/main.go"), 0755); err != nil {
-		return fmt.Errorf("failed to create cmd/main.go: %w", err)
+	if err := os.MkdirAll(filepath.Dir("./cmd/"), 0755); err != nil {
+		return fmt.Errorf("failed to create cmd/: %w", err)
 	}
 
 	// create "internal" folder
