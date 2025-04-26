@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/NYCU-SDC/summer/pkg/database"
 	"github.com/NYCU-SDC/summer/pkg/handler"
+	"github.com/NYCU-SDC/summer/pkg/pagination"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
@@ -55,6 +56,10 @@ func WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *z
 		problem = NewInternalServerProblem("Internal server error")
 	case errors.Is(err, handlerutil.ErrInvalidUUID):
 		problem = NewValidateProblem("Invalid UUID format")
+	case errors.Is(err, pagination.ErrInvalidPageOrSize):
+		problem = NewValidateProblem("Invalid page or size")
+	case errors.Is(err, pagination.ErrInvalidSortingField):
+		problem = NewValidateProblem("Invalid sorting field")
 	default:
 		problem = NewInternalServerProblem("Internal server error")
 	}
