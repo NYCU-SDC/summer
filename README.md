@@ -49,3 +49,13 @@ You will recive a greeting from the local server!
 The `create_full_schema.sh` is use to collect all `schema.sql` in `internal` folder and output, merge them all to `./internal/database/full_schema.sql`.
 
 This is a recommeded tool if you want to use sqlc for SQL generation. Edit the shell script if you wish to use different output file or change other behaviors.
+
+Run the script from the project root:
+```
+./ scripts/create_full_schema.sql
+```
+If you encounter any problem like `permission denied`, it might be cause by a missing x bit in the file mode and cause it unexecutable. To fix this run:
+```
+chmod -x /path/to/the_script
+```
+And try again.
