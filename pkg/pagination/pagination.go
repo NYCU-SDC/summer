@@ -35,7 +35,7 @@ func NewFactory[T any](maxPageSize int, sortableColumns []string) Factory[T] {
 	}
 }
 
-func (f Factory[T]) getRequest(r *http.Request) (Request, error) {
+func (f Factory[T]) GetRequest(r *http.Request) (Request, error) {
 	pageParam := r.URL.Query().Get("page")
 	sizeParam := r.URL.Query().Get("size")
 	sort := r.URL.Query().Get("sort")
