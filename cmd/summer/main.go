@@ -16,7 +16,7 @@ const (
 	appVersion     = "0.1.0"
 	scriptsDir     = "./scripts/" // the directory where scripts are stored on the local machine
 	defaultRepo    = "https://github.com/NYCU-SDC/summer/"
-	defaultBranch  = "build/init-project"
+	defaultBranch  = "main"
 	scriptRegistry = "registry.json"
 )
 
