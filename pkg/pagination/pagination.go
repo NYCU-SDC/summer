@@ -8,10 +8,10 @@ import (
 )
 
 type Request struct {
-	page   int
-	size   int
-	sort   string
-	sortBy string
+	Page   int
+	Size   int
+	Sort   string
+	SortBy string
 }
 
 type Response[T any] struct {
@@ -24,14 +24,14 @@ type Response[T any] struct {
 }
 
 type Factory[T any] struct {
-	maxPageSize     int
-	sortableColumns []string
+	MaxPageSize     int
+	SortableColumns []string
 }
 
 func NewFactory[T any](maxPageSize int, sortableColumns []string) Factory[T] {
 	return Factory[T]{
-		maxPageSize:     maxPageSize,
-		sortableColumns: sortableColumns,
+		MaxPageSize:     maxPageSize,
+		SortableColumns: sortableColumns,
 	}
 }
 
@@ -50,18 +50,18 @@ func (f Factory[T]) GetRequest(r *http.Request) (Request, error) {
 		size = 10
 	}
 
-	if size > f.maxPageSize {
+	if size > f.MaxPageSize {
 		return Request{}, errors.New("max page size exceeded")
 	}
-	if !slices.Contains(f.sortableColumns, sort) && sortBy != "" {
+	if !slices.Contains(f.SortableColumns, sort) && sortBy != "" {
 		return Request{}, errors.New("invalid sort column")
 	}
 
 	return Request{
-		page:   page,
-		size:   size,
-		sort:   sort,
-		sortBy: sortBy,
+		Page:   page,
+		Size:   size,
+		Sort:   sort,
+		SortBy: sortBy,
 	}, nil
 }
 
