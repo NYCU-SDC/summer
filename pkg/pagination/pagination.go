@@ -77,6 +77,6 @@ func (f Factory[T]) NewResponse(items []T, totalItems int, page, size int) Respo
 		TotalItems:  totalItems,
 		CurrentPage: page,
 		PageSize:    size,
-		HasNextPage: page < totalPages,
+		HasNextPage: page+1 < totalPages,
 	}
 }
