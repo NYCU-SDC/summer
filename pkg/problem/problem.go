@@ -25,7 +25,25 @@ type Problem struct {
 	Detail string `json:"detail"`
 }
 
-func WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *zap.Logger) {
+type HttpWriter struct {
+	ProblemMapping func(error) Problem
+}
+
+func New() *HttpWriter {
+	return &HttpWriter{
+		ProblemMapping: func(err error) Problem {
+			return Problem{}
+		},
+	}
+}
+
+func NewWithMapping(ProblemMapping func(error) Problem) *HttpWriter {
+	return &HttpWriter{
+		ProblemMapping: ProblemMapping,
+	}
+}
+
+func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *zap.Logger) {
 	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteError")
 	defer span.End()
 
@@ -34,34 +52,41 @@ func WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *z
 	}
 
 	var problem Problem
-	var notFoundError handlerutil.NotFoundError
-	var validationErrors validator.ValidationErrors
-	var internalDbError databaseutil.InternalServerError
-	switch {
-	case errors.As(err, &notFoundError):
-		problem = NewNotFoundProblem(err.Error())
-	case errors.As(err, &validationErrors):
-		problem = NewValidateProblem(validationErrors.Error())
-	case errors.Is(err, handlerutil.ErrUserAlreadyExists):
-		problem = NewValidateProblem("User already exists")
-	case errors.Is(err, handlerutil.ErrCredentialInvalid):
-		problem = NewUnauthorizedProblem("Invalid username or password")
-	case errors.Is(err, handlerutil.ErrForbidden):
-		problem = NewForbiddenProblem("Make sure you have the right permissions")
-	case errors.Is(err, handlerutil.ErrUnauthorized):
-		problem = NewUnauthorizedProblem("You must be logged in to access this resource")
-	case errors.Is(err, handlerutil.ErrInvalidUUID):
-		problem = NewValidateProblem(err.Error())
-	case errors.As(err, &internalDbError):
-		problem = NewInternalServerProblem("Internal server error")
-	case errors.Is(err, handlerutil.ErrInvalidUUID):
-		problem = NewValidateProblem("Invalid UUID format")
-	case errors.Is(err, pagination.ErrInvalidPageOrSize):
-		problem = NewValidateProblem("Invalid page or size")
-	case errors.Is(err, pagination.ErrInvalidSortingField):
-		problem = NewValidateProblem("Invalid sorting field")
-	default:
-		problem = NewInternalServerProblem("Internal server error")
+
+	// Check if the error matches the custom error type
+	problem = h.ProblemMapping(err)
+
+	// If the problem is still empty, check for standard error types
+	if problem == (Problem{}) {
+		var notFoundError handlerutil.NotFoundError
+		var validationErrors validator.ValidationErrors
+		var internalDbError databaseutil.InternalServerError
+		switch {
+		case errors.As(err, &notFoundError):
+			problem = NewNotFoundProblem(err.Error())
+		case errors.As(err, &validationErrors):
+			problem = NewValidateProblem(validationErrors.Error())
+		case errors.Is(err, handlerutil.ErrUserAlreadyExists):
+			problem = NewValidateProblem("User already exists")
+		case errors.Is(err, handlerutil.ErrCredentialInvalid):
+			problem = NewUnauthorizedProblem("Invalid username or password")
+		case errors.Is(err, handlerutil.ErrForbidden):
+			problem = NewForbiddenProblem("Make sure you have the right permissions")
+		case errors.Is(err, handlerutil.ErrUnauthorized):
+			problem = NewUnauthorizedProblem("You must be logged in to access this resource")
+		case errors.Is(err, handlerutil.ErrInvalidUUID):
+			problem = NewValidateProblem(err.Error())
+		case errors.As(err, &internalDbError):
+			problem = NewInternalServerProblem("Internal server error")
+		case errors.Is(err, handlerutil.ErrInvalidUUID):
+			problem = NewValidateProblem("Invalid UUID format")
+		case errors.Is(err, pagination.ErrInvalidPageOrSize):
+			problem = NewValidateProblem("Invalid page or size")
+		case errors.Is(err, pagination.ErrInvalidSortingField):
+			problem = NewValidateProblem("Invalid sorting field")
+		default:
+			problem = NewInternalServerProblem("Internal server error")
+		}
 	}
 
 	logger.Warn("Handling "+problem.Title, zap.String("problem", problem.Title), zap.Error(err), zap.Int("status", problem.Status), zap.String("type", problem.Type), zap.String("detail", problem.Detail))
