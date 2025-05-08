@@ -59,6 +59,7 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 	// If the problem is still empty, check for standard error types
 	if problem == (Problem{}) {
 		var notFoundError handlerutil.NotFoundError
+		var invalidUUIDError handlerutil.InvalidUUIDError
 		var validationErrors validator.ValidationErrors
 		var internalDbError databaseutil.InternalServerError
 		switch {
@@ -66,6 +67,8 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 			problem = NewNotFoundProblem(err.Error())
 		case errors.As(err, &validationErrors):
 			problem = NewValidateProblem(validationErrors.Error())
+		case errors.As(err, &invalidUUIDError):
+			problem = NewValidateProblem("Invalid UUID format")
 		case errors.Is(err, handlerutil.ErrUserAlreadyExists):
 			problem = NewValidateProblem("User already exists")
 		case errors.Is(err, handlerutil.ErrCredentialInvalid):
@@ -78,8 +81,6 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 			problem = NewValidateProblem(err.Error())
 		case errors.As(err, &internalDbError):
 			problem = NewInternalServerProblem("Internal server error")
-		case errors.Is(err, handlerutil.ErrInvalidUUID):
-			problem = NewValidateProblem("Invalid UUID format")
 		case errors.Is(err, pagination.ErrInvalidPageOrSize):
 			problem = NewValidateProblem("Invalid page or size")
 		case errors.Is(err, pagination.ErrInvalidSortingField):
