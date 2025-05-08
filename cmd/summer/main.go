@@ -13,7 +13,7 @@ import (
 
 const (
 	appName        = "summer"
-	appVersion     = "0.1.0"
+	appVersion     = "0.1.1"
 	scriptsDir     = "./scripts/" // the directory where scripts are stored on the local machine
 	defaultRepo    = "https://github.com/NYCU-SDC/summer/"
 	defaultBranch  = "main"
@@ -36,6 +36,7 @@ on your system.`,
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&repoURL, "repo", "r", defaultRepo, "URL of the script repository")
 	rootCmd.PersistentFlags().StringVarP(&repoBranch, "branch", "b", defaultBranch, "Branch of the script repository")
+	rootCmd.PersistentFlags().StringP("name", "n", "", "Name of the project")
 
 	// Initialize commands
 	rootCmd.AddCommand(initCommand())
@@ -47,7 +48,12 @@ func initCommand() *cobra.Command {
 		Use:   "init",
 		Short: "Initialize the repository",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return initFileStructure()
+			projectName, _ := cmd.Flags().GetString("name")
+
+			if projectName == "" {
+				projectName = getInput("What is the projects name: ")
+			}
+			return initFileStructure(projectName)
 		},
 	}
 	return cmd
@@ -110,7 +116,7 @@ func downloadScriptFromGit(repoURL, repoBranch, scriptPath, outputPath string) e
 
 	// Specify which files/folders to checkout
 	sparseConfigPath := filepath.Join(tempDir, ".git", "info", "sparse-checkout")
-	if err := os.WriteFile(sparseConfigPath, []byte(scriptPath), 0644); err != nil {
+	if err := os.WriteFile(sparseConfigPath, []byte(scriptPath), 0755); err != nil {
 		return fmt.Errorf("failed to write sparse-checkout config: %w", err)
 	}
 
@@ -134,6 +140,10 @@ func downloadScriptFromGit(repoURL, repoBranch, scriptPath, outputPath string) e
 	}
 	if err := os.WriteFile(outputPath, scriptContent, 0755); err != nil {
 		return fmt.Errorf("failed to write script to output: %w", err)
+	}
+	// make sure the script is executable
+	if err := os.Chmod(outputPath, 0755); err != nil {
+		return fmt.Errorf("failed to set script permissions: %w", err)
 	}
 
 	return nil
@@ -175,7 +185,7 @@ func downloadAllScriptFromGit(repoURL, repoBranch, scriptFolderPath, outputPath 
 
 	// Specify which files/folders to checkout
 	sparseConfigPath := filepath.Join(tempDir, ".git", "info", "sparse-checkout")
-	if err := os.WriteFile(sparseConfigPath, []byte(scriptFolderPath), 0644); err != nil {
+	if err := os.WriteFile(sparseConfigPath, []byte(scriptFolderPath), 0755); err != nil {
 		return fmt.Errorf("failed to write sparse-checkout config: %w", err)
 	}
 
@@ -232,7 +242,7 @@ func downloadExampleFromGit(repoURL, repoBranch, examplePath, outputPath string)
 
 	// Specify which files/folders to checkout
 	sparseConfigPath := filepath.Join(tempDir, ".git", "info", "sparse-checkout")
-	if err := os.WriteFile(sparseConfigPath, []byte(examplePath), 0644); err != nil {
+	if err := os.WriteFile(sparseConfigPath, []byte(examplePath), 0755); err != nil {
 		return fmt.Errorf("failed to write sparse-checkout config: %w", err)
 	}
 
@@ -257,12 +267,15 @@ func downloadExampleFromGit(repoURL, repoBranch, examplePath, outputPath string)
 	if err := os.WriteFile(outputPath, exampleContent, 0755); err != nil {
 		return fmt.Errorf("failed to write script to output: %w", err)
 	}
+	// make sure the script is executable
+	if err := os.Chmod(outputPath, 0755); err != nil {
+		return fmt.Errorf("failed to set script permissions: %w", err)
+	}
 	return nil
 }
 
-func initFileStructure() error {
+func initFileStructure(projectName string) error {
 	// create go.mod and go.sum
-	projectName := getInput("What is the projects name: ")
 	cmd := exec.Command("go", "mod", "init", projectName)
 	err := cmd.Run()
 	if err != nil {
@@ -288,6 +301,15 @@ func initFileStructure() error {
 	if err := downloadExampleFromGit(repoURL, repoBranch, "/example/main.txt", "./cmd/main.go"); err != nil {
 		return fmt.Errorf("failed to download example: %w", err)
 	}
+
+	// download dependencies
+	cmd = exec.Command("go", "mod", "tidy")
+	cmd.Dir = "./"
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to tidy go mod: %w", err)
+	}
+
+	fmt.Println("Project initialized successfully!")
 
 	return nil
 }
@@ -327,6 +349,11 @@ func copyFileContents(srcFile, dstFile string) (err error) {
 	}
 	defer in.Close()
 
+	info, err := in.Stat()
+	if err != nil {
+		return
+	}
+
 	out, err := os.Create(dstFile) // perms default to 0644
 	if err != nil {
 		return
@@ -340,6 +367,15 @@ func copyFileContents(srcFile, dstFile string) (err error) {
 	}()
 
 	_, err = io.Copy(out, in)
+	if err != nil {
+		return
+	}
+
+	// Set permissions to match original file
+	if err = os.Chmod(dstFile, info.Mode().Perm()); err != nil {
+		return fmt.Errorf("failed to set file permissions: %w", err)
+	}
+
 	return
 }
 
