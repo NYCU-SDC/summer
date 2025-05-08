@@ -64,7 +64,7 @@ func RecoverMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) ht
 					}
 				}
 
-				problem.WriteError(context.Background(), w, handlerutil.ErrInternalServer, logger)
+				problem.New().WriteError(context.Background(), w, handlerutil.ErrInternalServer, logger)
 			}
 
 			span.End()
