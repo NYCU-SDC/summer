@@ -61,7 +61,7 @@ func WriteJSONResponse(w http.ResponseWriter, status int, data interface{}) {
 func ParseUUID(value string) (uuid.UUID, error) {
 	parsedUUID, err := uuid.Parse(value)
 	if err != nil {
-		return parsedUUID, NewInvalidUUIDError(value, "invalid UUID format")
+		return parsedUUID, fmt.Errorf("%w: %s, %v", ErrInvalidUUID, value, err)
 	}
 	return parsedUUID, nil
 }
