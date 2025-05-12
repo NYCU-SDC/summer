@@ -59,7 +59,6 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 	// If the problem is still empty, check for standard error types
 	if problem == (Problem{}) {
 		var notFoundError handlerutil.NotFoundError
-		var invalidUUIDError handlerutil.InvalidUUIDError
 		var validationErrors validator.ValidationErrors
 		var internalDbError databaseutil.InternalServerError
 		switch {
@@ -67,8 +66,6 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 			problem = NewNotFoundProblem(err.Error())
 		case errors.As(err, &validationErrors):
 			problem = NewValidateProblem(validationErrors.Error())
-		case errors.As(err, &invalidUUIDError):
-			problem = NewValidateProblem("Invalid UUID format")
 		case errors.Is(err, handlerutil.ErrUserAlreadyExists):
 			problem = NewValidateProblem("User already exists")
 		case errors.Is(err, handlerutil.ErrCredentialInvalid):

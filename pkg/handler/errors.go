@@ -15,32 +15,6 @@ var (
 	ErrInvalidUUID       = errors.New("failed to parse UUID")
 )
 
-type InvalidUUIDError struct {
-	UUID    string
-	Message string
-}
-
-func (e InvalidUUIDError) Error() string {
-	if e.Message != "" {
-		return e.Message
-	}
-	if e.UUID != "" {
-		return fmt.Sprintf("failed to parse UUID '%s'", e.UUID)
-	}
-	return ErrInvalidUUID.Error()
-}
-
-func (e InvalidUUIDError) Is(target error) bool {
-	return errors.Is(target, ErrInvalidUUID)
-}
-
-func NewInvalidUUIDError(uuid, message string) InvalidUUIDError {
-	return InvalidUUIDError{
-		UUID:    uuid,
-		Message: message,
-	}
-}
-
 type NotFoundError struct {
 	Table   string
 	Key     string
