@@ -1,6 +1,7 @@
 package pagination
 
 import (
+	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -50,10 +51,10 @@ func (f Factory[T]) GetRequest(r *http.Request) (Request, error) {
 	}
 
 	if size > f.MaxPageSize {
-		return Request{}, ErrInvalidPageOrSize
+		return Request{}, fmt.Errorf("%w: %d, max: %d", ErrInvalidPageOrSize, size, f.MaxPageSize)
 	}
 	if !slices.Contains(f.SortableColumns, sort) && sortBy != "" {
-		return Request{}, ErrInvalidSortingField
+		return Request{}, fmt.Errorf("%w: %s, valid: %v", ErrInvalidSortingField, sort, f.SortableColumns)
 	}
 
 	return Request{

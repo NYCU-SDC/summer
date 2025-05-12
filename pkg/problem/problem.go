@@ -75,11 +75,9 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 		case errors.Is(err, handlerutil.ErrUnauthorized):
 			problem = NewUnauthorizedProblem("You must be logged in to access this resource")
 		case errors.Is(err, handlerutil.ErrInvalidUUID):
-			problem = NewValidateProblem(err.Error())
+			problem = NewValidateProblem("Invalid UUID format")
 		case errors.As(err, &internalDbError):
 			problem = NewInternalServerProblem("Internal server error")
-		case errors.Is(err, handlerutil.ErrInvalidUUID):
-			problem = NewValidateProblem("Invalid UUID format")
 		case errors.Is(err, pagination.ErrInvalidPageOrSize):
 			problem = NewValidateProblem("Invalid page or size")
 		case errors.Is(err, pagination.ErrInvalidSortingField):
