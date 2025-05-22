@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # This script merges all policy.csv files found in the current directory and subdirectories into a single CSV file.
+# It is used to create a full policy file for Casbin.
 
 set -e
 
