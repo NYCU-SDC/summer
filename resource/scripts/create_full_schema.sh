@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# This script merges all schema.sql files found in the internal directory and subdirectories into a single SQL file.
+
 set -e
 
 # Default values
