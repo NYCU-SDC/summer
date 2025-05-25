@@ -10,6 +10,11 @@ func CORSMiddleware(next http.HandlerFunc, logger *zap.Logger, allowOrigin []str
 	return func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 
+		if origin == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		if slices.Contains(allowOrigin, "*") {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		} else if slices.Contains(allowOrigin, origin) {
