@@ -14,6 +14,7 @@ func CORSMiddleware(next http.HandlerFunc, logger *zap.Logger, allowOrigin []str
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		} else if slices.Contains(allowOrigin, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else {
 			logger.Warn("CORS request from disallowed origin", zap.String("origin", origin))
 			http.Error(w, "CORS not allowed", http.StatusForbidden)
@@ -22,7 +23,6 @@ func CORSMiddleware(next http.HandlerFunc, logger *zap.Logger, allowOrigin []str
 
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
