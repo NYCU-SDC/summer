@@ -150,3 +150,12 @@ func NewForbiddenProblem(detail string) Problem {
 		Detail: detail,
 	}
 }
+
+func NewBadRequestProblem(detail string) Problem {
+	return Problem{
+		Title:  "Bad Request",
+		Status: http.StatusBadRequest,
+		Type:   "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+		Detail: detail,
+	}
+}
