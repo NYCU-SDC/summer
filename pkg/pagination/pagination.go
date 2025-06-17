@@ -53,8 +53,8 @@ func (f Factory[T]) GetRequest(r *http.Request) (Request, error) {
 	if size > f.MaxPageSize {
 		return Request{}, fmt.Errorf("%w: %d, max: %d", ErrInvalidPageOrSize, size, f.MaxPageSize)
 	}
-	if !slices.Contains(f.SortableColumns, sort) && sortBy != "" {
-		return Request{}, fmt.Errorf("%w: %s, valid: %v", ErrInvalidSortingField, sort, f.SortableColumns)
+	if !slices.Contains(f.SortableColumns, sortBy) && sort != "" {
+		return Request{}, fmt.Errorf("%w: %s, valid: %v", ErrInvalidSortingField, sortBy, f.SortableColumns)
 	}
 
 	return Request{
