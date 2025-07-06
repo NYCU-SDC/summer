@@ -2,9 +2,12 @@ package logutil
 
 import (
 	"context"
+	"fmt"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -23,6 +26,8 @@ func ZapProductionConfig() zap.Config {
 
 // ZapDevelopmentConfig returns a zap.Config same as zap.NewProduction() but with more pretty output
 func ZapDevelopmentConfig() zap.Config {
+	rootDir, _ := os.Getwd()
+
 	config := zap.Config{
 		Level:             zap.NewAtomicLevelAt(zap.DebugLevel),
 		Development:       true,
@@ -34,7 +39,7 @@ func ZapDevelopmentConfig() zap.Config {
 	}
 
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	config.EncoderConfig.EncodeCaller = prettyEncodeCaller
+	config.EncoderConfig.EncodeCaller = relativePrettyCallerEncoder(rootDir)
 
 	return config
 }
@@ -66,4 +71,33 @@ func prettyEncodeCaller(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEn
 	}
 	callerStr += "\t"
 	enc.AppendString(callerStr)
+}
+
+// relativePrettyCallerEncoder returns a zapcore.CallerEncoder that formats the caller path relative to the root directory
+// it enables clickable links in the GoLand console output
+func relativePrettyCallerEncoder(rootDir string) zapcore.CallerEncoder {
+	const fixedWidth = 40
+
+	return func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
+		relPath, err := filepath.Rel(rootDir, caller.File)
+		callerStr := ""
+
+		if err == nil && !strings.HasPrefix(relPath, "..") && !filepath.IsAbs(relPath) {
+			callerStr = fmt.Sprintf("%s:%d", relPath, caller.Line)
+		} else {
+			parts := strings.Split(caller.File, string(filepath.Separator))
+
+			lastN := 3
+			if len(parts) > lastN {
+				parts = parts[len(parts)-lastN:]
+			}
+			callerStr = fmt.Sprintf("external/%s:%d", filepath.Join(parts...), caller.Line)
+		}
+
+		if len(callerStr) < fixedWidth {
+			callerStr += strings.Repeat(" ", fixedWidth-len(callerStr))
+		}
+		callerStr += "\t"
+		enc.AppendString(callerStr)
+	}
 }
