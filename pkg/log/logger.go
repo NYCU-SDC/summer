@@ -75,12 +75,23 @@ func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
 
 func relativePrettyCallerEncoder(rootDir string) zapcore.CallerEncoder {
 	const fixedWidth = 40
+
 	return func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
 		relPath, err := filepath.Rel(rootDir, caller.File)
-		callerStr := fmt.Sprintf("%s:%d", relPath, caller.Line)
-		if err != nil {
-			callerStr = caller.String()
+		callerStr := ""
+
+		if err == nil && !strings.HasPrefix(relPath, "..") && !filepath.IsAbs(relPath) {
+			callerStr = fmt.Sprintf("%s:%d", relPath, caller.Line)
+		} else {
+			parts := strings.Split(caller.File, string(filepath.Separator))
+
+			lastN := 3
+			if len(parts) > lastN {
+				parts = parts[len(parts)-lastN:]
+			}
+			callerStr = fmt.Sprintf("external/%s:%d", filepath.Join(parts...), caller.Line)
 		}
+
 		if len(callerStr) < fixedWidth {
 			callerStr += strings.Repeat(" ", fixedWidth-len(callerStr))
 		}
