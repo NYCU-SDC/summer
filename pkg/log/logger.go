@@ -73,6 +73,8 @@ func prettyEncodeCaller(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEn
 	enc.AppendString(callerStr)
 }
 
+// relativePrettyCallerEncoder returns a zapcore.CallerEncoder that formats the caller path relative to the root directory
+// it enables clickable links in the GoLand console output
 func relativePrettyCallerEncoder(rootDir string) zapcore.CallerEncoder {
 	const fixedWidth = 40
 
