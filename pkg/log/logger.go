@@ -2,9 +2,12 @@ package logutil
 
 import (
 	"context"
+	"fmt"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -23,6 +26,8 @@ func ZapProductionConfig() zap.Config {
 
 // ZapDevelopmentConfig returns a zap.Config same as zap.NewProduction() but with more pretty output
 func ZapDevelopmentConfig() zap.Config {
+	rootDir, _ := os.Getwd()
+
 	config := zap.Config{
 		Level:             zap.NewAtomicLevelAt(zap.DebugLevel),
 		Development:       true,
@@ -34,7 +39,7 @@ func ZapDevelopmentConfig() zap.Config {
 	}
 
 	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	config.EncoderConfig.EncodeCaller = prettyEncodeCaller
+	config.EncoderConfig.EncodeCaller = relativePrettyCallerEncoder(rootDir)
 
 	return config
 }
@@ -57,13 +62,29 @@ func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
 	return logger
 }
 
-// prettyEncodeCaller add padding to the caller string
-func prettyEncodeCaller(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-	const fixedWidth = 25
-	callerStr := caller.TrimmedPath()
-	if len(callerStr) < fixedWidth {
-		callerStr += strings.Repeat(" ", fixedWidth-len(callerStr))
+//// prettyEncodeCaller add padding to the caller string
+//func prettyEncodeCaller(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
+//	const fixedWidth = 25
+//	callerStr := caller.TrimmedPath()
+//	if len(callerStr) < fixedWidth {
+//		callerStr += strings.Repeat(" ", fixedWidth-len(callerStr))
+//	}
+//	callerStr += "\t"
+//	enc.AppendString(callerStr)
+//}
+
+func relativePrettyCallerEncoder(rootDir string) zapcore.CallerEncoder {
+	const fixedWidth = 40
+	return func(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
+		relPath, err := filepath.Rel(rootDir, caller.File)
+		callerStr := fmt.Sprintf("%s:%d", relPath, caller.Line)
+		if err != nil {
+			callerStr = caller.String()
+		}
+		if len(callerStr) < fixedWidth {
+			callerStr += strings.Repeat(" ", fixedWidth-len(callerStr))
+		}
+		callerStr += "\t"
+		enc.AppendString(callerStr)
 	}
-	callerStr += "\t"
-	enc.AppendString(callerStr)
 }
