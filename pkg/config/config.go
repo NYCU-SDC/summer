@@ -27,6 +27,9 @@ func Merge[T any](base *T, override *T) (*T, error) {
 		zero := reflect.Zero(field.Type()).Interface()
 
 		if field.CanSet() && !reflect.DeepEqual(overrideField.Interface(), zero) {
+			if (overrideField.Kind() == reflect.Slice || overrideField.Kind() == reflect.Array) && overrideField.Len() == 0 {
+				continue
+			}
 			field.Set(overrideField)
 		}
 	}
