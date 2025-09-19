@@ -87,6 +87,8 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 		}
 	}
 
+	logger = logger.WithOptions(zap.AddCallerSkip(1));
+
 	logger.Warn("Handling "+problem.Title, zap.String("problem", problem.Title), zap.Error(err), zap.Int("status", problem.Status), zap.String("type", problem.Type), zap.String("detail", problem.Detail))
 
 	w.Header().Set("Content-Type", "application/problem+json")
