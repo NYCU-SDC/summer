@@ -18,6 +18,7 @@ func CORSMiddleware(next http.HandlerFunc, logger *zap.Logger, allowOrigin []str
 
 		if slices.Contains(allowOrigin, "*") {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		} else if slices.Contains(allowOrigin, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
