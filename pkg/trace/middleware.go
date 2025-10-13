@@ -1,8 +1,14 @@
 package traceutil
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"runtime"
+
 	"github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
@@ -11,11 +17,63 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"net/http"
-	"runtime"
 )
 
-func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger) http.HandlerFunc {
+type CustomResponseWriter struct {
+	http.ResponseWriter
+	StatusCode int
+	Body       *bytes.Buffer
+}
+
+func (w *CustomResponseWriter) WriteHeader(code int) {
+	w.StatusCode = code
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *CustomResponseWriter) Write(b []byte) (int, error) {
+	if w.Body != nil {
+		w.Body.Write(b)
+	}
+	return w.ResponseWriter.Write(b)
+}
+
+func writeParseError(w http.ResponseWriter, err error, logger *zap.Logger) {
+	p := problem.NewInternalServerProblem("Internal server error")
+
+	logger = logger.WithOptions(zap.AddCallerSkip(1))
+
+	logger.Warn("Failed to parse request body in TraceMiddleware", zap.Error(err))
+
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(p.Status)
+
+	jsonBytes, err := json.Marshal(p)
+	if err != nil {
+		logger.Error("Failed to marshal problem response", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_, err = w.Write(jsonBytes)
+	if err != nil {
+		logger.Error("Failed to write problem response", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// TraceMiddleware provides OpenTelemetry tracing and structured logging for HTTP handlers.
+// It creates a new span for each request, linking it to any upstream traces, and enriches
+// the logger with trace and span IDs for context propagation.
+//
+// The middleware logs request completion with varying severity levels (Info, Warn, Error)
+// based on the HTTP status code. When the debug flag is enabled, it enhances error logs
+// for 4xx and 5xx responses by including full request/response headers and bodies.
+//
+// Note: Enabling debug mode causes the entire request body to be read into memory. This
+// can lead to high memory consumption for large payloads, such as file uploads, and is a
+// known limitation. Use with caution in environments that handle large requests.
+func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http.HandlerFunc {
 	name := "internal/middleware"
 	tracer := otel.Tracer(name)
 	propagator := otel.GetTextMapPropagator()
@@ -41,7 +99,52 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger) http.HandlerFunc
 			logger.Debug("No upstream trace available, creating a new one", zap.String("trace_id", span.SpanContext().TraceID().String()))
 		}
 
-		next(w, r.WithContext(ctx))
+		var bodyBytes []byte
+
+		if debug {
+			var err error
+			bodyBytes, err = io.ReadAll(r.Body)
+			if err != nil {
+				writeParseError(w, fmt.Errorf("invalid request body: %w", err), logger)
+				return
+			}
+
+			err = r.Body.Close()
+			if err != nil {
+				writeParseError(w, fmt.Errorf("close request body: %w", err), logger)
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+
+		crw := &CustomResponseWriter{ResponseWriter: w}
+		next(crw, r.WithContext(ctx))
+
+		status := crw.StatusCode
+
+		fields := []zap.Field{
+			zap.String("method", r.Method),
+			zap.String("path", r.URL.Path),
+			zap.String("query", r.URL.RawQuery),
+			zap.Int("status", status),
+		}
+
+		if status >= 100 && status < 400 {
+			logger.Info("Request completed", fields...)
+		} else if status >= 400 && status < 500 {
+			logger.Error("Client request rejected", fields...)
+		} else {
+			if status == 500 && debug {
+				fields = append(fields,
+					zap.Any("request_headers", r.Header),
+					zap.String("request_body", string(bodyBytes)),
+					zap.Any("response_headers", crw.Header()),
+					zap.String("response_body", crw.Body.String()),
+				)
+			}
+			logger.Error("Internal server error occurred", fields...)
+		}
 	}
 }
 
