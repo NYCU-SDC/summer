@@ -37,12 +37,12 @@ func (w *CustomResponseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
-func writeParseError(w http.ResponseWriter, err error, logger *zap.Logger) {
+func writeBodyHandlingError(w http.ResponseWriter, err error, logger *zap.Logger) {
 	p := problem.NewInternalServerProblem("Internal server error")
 
 	logger = logger.WithOptions(zap.AddCallerSkip(1))
 
-	logger.Warn("Failed to parse request body in TraceMiddleware", zap.Error(err))
+	logger.Warn("Handling I/O with request body in TraceMiddleware", zap.Error(err))
 
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(p.Status)
@@ -105,13 +105,13 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 			var err error
 			bodyBytes, err = io.ReadAll(r.Body)
 			if err != nil {
-				writeParseError(w, fmt.Errorf("invalid request body: %w", err), logger)
+				writeBodyHandlingError(w, fmt.Errorf("failed to read request body: %w", err), logger)
 				return
 			}
 
 			err = r.Body.Close()
 			if err != nil {
-				writeParseError(w, fmt.Errorf("close request body: %w", err), logger)
+				writeBodyHandlingError(w, fmt.Errorf("failed to close request body: %w", err), logger)
 				return
 			}
 
