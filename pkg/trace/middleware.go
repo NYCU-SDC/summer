@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/NYCU-SDC/summer/pkg/handler"
-	"github.com/NYCU-SDC/summer/pkg/log"
+	handlerutil "github.com/NYCU-SDC/summer/pkg/handler"
+	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/problem"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -131,7 +131,7 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 		}
 
 		if status >= 100 && status < 400 {
-			logger.Info("Request completed", fields...)
+			logger.Debug("Request completed", fields...)
 		} else if status >= 400 && status < 500 {
 			logger.Error("Client request rejected", fields...)
 		} else {
