@@ -93,9 +93,7 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 		span.AddEvent("HTTPRequestStarted")
 
 		logger = logutil.WithContext(ctx, logger)
-		if upstream.HasTraceID() {
-			logger.Debug("Upstream trace available", zap.String("trace_id", upstream.TraceID().String()))
-		} else {
+		if upstream.HasTraceID() == false {
 			logger.Debug("No upstream trace available, creating a new one", zap.String("trace_id", span.SpanContext().TraceID().String()))
 		}
 
@@ -124,16 +122,20 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 		status := crw.StatusCode
 
 		fields := []zap.Field{
-			zap.String("method", r.Method),
-			zap.String("path", r.URL.Path),
-			zap.String("query", r.URL.RawQuery),
-			zap.Int("status", status),
+			zap.String("http.method", r.Method),
+			zap.String("http.path", r.URL.Path),
+			zap.String("http.query", r.URL.RawQuery),
+			zap.Int("http.status_code", status),
 		}
 
 		if status >= 100 && status < 400 {
-			logger.Debug("Request completed", fields...)
+			msg := fmt.Sprintf("%s %s completed with status code %d", r.Method, r.URL.Path, status)
+			logger.Debug(msg, fields...)
+
 		} else if status >= 400 && status < 500 {
-			logger.Error("Client request rejected", fields...)
+			msg := fmt.Sprintf("%s %s rejected with status code %d", r.Method, r.URL.Path, status)
+			logger.Error(msg, fields...)
+
 		} else {
 			if status == 500 && debug {
 				fields = append(fields,
@@ -143,7 +145,8 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 					zap.String("response_body", crw.Body.String()),
 				)
 			}
-			logger.Error("Internal server error occurred", fields...)
+			msg := fmt.Sprintf("%s %s failed with status code %d", r.Method, r.URL.Path, status)
+			logger.Error(msg, fields...)
 		}
 	}
 }
