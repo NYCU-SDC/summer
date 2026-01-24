@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strings"
 
 	"go.uber.org/zap"
 )
@@ -65,7 +66,9 @@ func StartMethod(ctx context.Context, logger *zap.Logger, name string, params ma
 //	})
 func (t *MethodTracker) Complete(result map[string]interface{}) {
 	normalized := normalizeParams(result)
-	logMsg := fmt.Sprintf("Method %s completed", t.methodName)
+	summary := buildSummaryString(normalized)
+
+	logMsg := fmt.Sprintf("Method %s completed with result: %s", t.methodName, summary)
 
 	t.logger.Info(logMsg,
 		zap.String("method.name", t.methodName),
@@ -158,4 +161,31 @@ func normalizeMap(val reflect.Value) interface{} {
 	}
 
 	return result
+}
+
+func buildSummaryString(v interface{}) string {
+	if v == nil {
+		return ""
+	}
+
+	asMap, ok := v.(map[string]interface{})
+	if !ok {
+		return fmt.Sprintf("%v", v)
+	}
+
+	var sb strings.Builder
+	keys := make([]string, 0, len(asMap))
+	for k := range asMap {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for i, k := range keys {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		val := asMap[k]
+		sb.WriteString(fmt.Sprintf("%s=%v", k, val))
+	}
+	return sb.String()
 }
