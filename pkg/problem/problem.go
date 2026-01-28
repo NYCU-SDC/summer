@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+
 	"github.com/NYCU-SDC/summer/pkg/database"
 	"github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/NYCU-SDC/summer/pkg/pagination"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
-	"net/http"
 )
 
 // Problem represents a problem detail as defined in RFC 7807
@@ -23,6 +24,14 @@ type Problem struct {
 	// For demonstration purposes, we use an MDN URI here.
 	Type   string `json:"type"`
 	Detail string `json:"detail"`
+
+	Instance string `json:"instance,omitempty"`
+
+	Errors []string `json:"errors,omitempty"`
+}
+
+func (p Problem) IsEmpty() bool {
+	return p.Title == "" && p.Status == 0 && p.Type == "" && p.Detail == "" && p.Instance == "" && len(p.Errors) == 0
 }
 
 type HttpWriter struct {
@@ -57,13 +66,20 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 	problem = h.ProblemMapping(err)
 
 	// If the problem is still empty, check for standard error types
-	if problem == (Problem{}) {
+	if problem.IsEmpty() {
 		var notFoundError handlerutil.NotFoundError
+		var validationError handlerutil.ValidationError
 		var validationErrors validator.ValidationErrors
 		var internalDbError databaseutil.InternalServerError
 		switch {
 		case errors.As(err, &notFoundError):
 			problem = NewNotFoundProblem(err.Error())
+		case errors.As(err, &validationError):
+			if len(validationError.Errors) > 0 {
+				problem = NewValidateProblemWithErrors(validationError.Error(), validationError.Errors)
+			} else {
+				problem = NewValidateProblem(validationError.Error())
+			}
 		case errors.As(err, &validationErrors):
 			problem = NewValidateProblem(validationErrors.Error())
 		case errors.Is(err, handlerutil.ErrUserAlreadyExists):
@@ -134,6 +150,16 @@ func NewValidateProblem(detail string) Problem {
 		Status: http.StatusBadRequest,
 		Type:   "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
 		Detail: detail,
+	}
+}
+
+func NewValidateProblemWithErrors(detail string, errors []string) Problem {
+	return Problem{
+		Title:  "Validation Problem",
+		Status: http.StatusBadRequest,
+		Type:   "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+		Detail: detail,
+		Errors: errors,
 	}
 }
 
