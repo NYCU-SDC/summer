@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Problem represents a problem detail as defined in RFC 7807
+// Problem represents a problem detail as defined in RFC 9457
 type Problem struct {
 	Title  string `json:"title"`
 	Status int    `json:"status"`
