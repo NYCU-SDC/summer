@@ -52,18 +52,10 @@ func NewWithMapping(ProblemMapping func(error) Problem) *HttpWriter {
 	}
 }
 
-func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *zap.Logger) {
-	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteError")
-	defer span.End()
-
-	if err == nil {
-		return
-	}
-
-	var problem Problem
-
+// buildProblem converts an error into a Problem struct
+func (h *HttpWriter) buildProblem(err error) Problem {
 	// Check if the error matches the custom error type
-	problem = h.ProblemMapping(err)
+	problem := h.ProblemMapping(err)
 
 	// If the problem is still empty, check for standard error types
 	if problem.IsEmpty() {
@@ -107,25 +99,57 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 		}
 	}
 
-	logger = logger.WithOptions(zap.AddCallerSkip(1))
+	return problem
+}
+
+// writeProblemResponse writes the Problem struct as JSON to the response writer
+func (h *HttpWriter) writeProblemResponse(w http.ResponseWriter, problem Problem, err error, logger *zap.Logger) {
+	logger = logger.WithOptions(zap.AddCallerSkip(2))
 
 	logger.Warn("Handling "+problem.Title, zap.String("problem", problem.Title), zap.Error(err), zap.Int("status", problem.Status), zap.String("type", problem.Type), zap.String("detail", problem.Detail))
 
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(problem.Status)
-	jsonBytes, err := json.Marshal(problem)
-	if err != nil {
-		logger.Error("Failed to marshal problem response", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	jsonBytes, marshalErr := json.Marshal(problem)
+	if marshalErr != nil {
+		logger.Error("Failed to marshal problem response", zap.Error(marshalErr))
+		http.Error(w, marshalErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	_, err = w.Write(jsonBytes)
-	if err != nil {
-		logger.Error("Failed to write problem response", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	_, writeErr := w.Write(jsonBytes)
+	if writeErr != nil {
+		logger.Error("Failed to write problem response", zap.Error(writeErr))
+		http.Error(w, writeErr.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *zap.Logger) {
+	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteError")
+	defer span.End()
+
+	if err == nil {
+		return
+	}
+
+	problem := h.buildProblem(err)
+	h.writeProblemResponse(w, problem, err, logger)
+}
+
+func (h *HttpWriter) WriteErrorWithRequest(ctx context.Context, r *http.Request, w http.ResponseWriter, err error, logger *zap.Logger) {
+	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteErrorWithRequest")
+	defer span.End()
+
+	if err == nil {
+		return
+	}
+
+	problem := h.buildProblem(err)
+	if r != nil && r.URL != nil {
+		problem.Instance = r.URL.Path
+	}
+	h.writeProblemResponse(w, problem, err, logger)
 }
 
 func NewInternalServerProblem(detail string) Problem {
