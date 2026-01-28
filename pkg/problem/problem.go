@@ -92,6 +92,8 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 			problem = NewUnauthorizedProblem("You must be logged in to access this resource")
 		case errors.Is(err, handlerutil.ErrInvalidUUID):
 			problem = NewValidateProblem("Invalid UUID format")
+		case errors.Is(err, handlerutil.ErrValidation):
+			problem = NewValidateProblem("Validation error")
 		case errors.Is(err, handlerutil.ErrNotFound):
 			problem = NewNotFoundProblem("Resource not found")
 		case errors.As(err, &internalDbError):
