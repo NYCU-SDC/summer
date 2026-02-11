@@ -13,6 +13,7 @@ var (
 	ErrUnauthorized      = errors.New("unauthorized")
 	ErrInternalServer    = errors.New("internal server error")
 	ErrInvalidUUID       = errors.New("failed to parse UUID")
+	ErrValidation        = errors.New("validation error")
 )
 
 type NotFoundError struct {
@@ -42,5 +43,41 @@ func NewNotFoundError(table, key, value, message string) NotFoundError {
 		Key:     key,
 		Value:   value,
 		Message: message,
+	}
+}
+
+type ValidationError struct {
+	Field   string
+	Value   interface{}
+	Message string
+	Errors  []string
+}
+
+func (e ValidationError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.Field != "" {
+		return fmt.Sprintf("validation failed for field '%s'", e.Field)
+	}
+	return ErrValidation.Error()
+}
+
+func (e ValidationError) Is(target error) bool {
+	return errors.Is(target, ErrValidation)
+}
+
+func NewValidationError(field string, value interface{}, message string) ValidationError {
+	return ValidationError{
+		Field:   field,
+		Value:   value,
+		Message: message,
+	}
+}
+
+func NewValidationErrorWithErrors(message string, errs []string) ValidationError {
+	return ValidationError{
+		Message: message,
+		Errors:  errs,
 	}
 }

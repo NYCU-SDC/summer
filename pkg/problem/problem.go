@@ -4,16 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
+
 	"github.com/NYCU-SDC/summer/pkg/database"
 	"github.com/NYCU-SDC/summer/pkg/handler"
 	"github.com/NYCU-SDC/summer/pkg/pagination"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
-	"net/http"
 )
 
-// Problem represents a problem detail as defined in RFC 7807
+// Problem represents a problem detail as defined in RFC 9457
 type Problem struct {
 	Title  string `json:"title"`
 	Status int    `json:"status"`
@@ -23,6 +24,14 @@ type Problem struct {
 	// For demonstration purposes, we use an MDN URI here.
 	Type   string `json:"type"`
 	Detail string `json:"detail"`
+
+	Instance string `json:"instance,omitempty"`
+
+	Errors []string `json:"errors,omitempty"`
+}
+
+func (p Problem) IsEmpty() bool {
+	return p.Title == "" && p.Status == 0 && p.Type == "" && p.Detail == "" && p.Instance == "" && len(p.Errors) == 0
 }
 
 type HttpWriter struct {
@@ -43,27 +52,26 @@ func NewWithMapping(ProblemMapping func(error) Problem) *HttpWriter {
 	}
 }
 
-func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *zap.Logger) {
-	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteError")
-	defer span.End()
-
-	if err == nil {
-		return
-	}
-
-	var problem Problem
-
+// buildProblem converts an error into a Problem struct
+func (h *HttpWriter) buildProblem(err error) Problem {
 	// Check if the error matches the custom error type
-	problem = h.ProblemMapping(err)
+	problem := h.ProblemMapping(err)
 
 	// If the problem is still empty, check for standard error types
-	if problem == (Problem{}) {
+	if problem.IsEmpty() {
 		var notFoundError handlerutil.NotFoundError
+		var validationError handlerutil.ValidationError
 		var validationErrors validator.ValidationErrors
 		var internalDbError databaseutil.InternalServerError
 		switch {
 		case errors.As(err, &notFoundError):
 			problem = NewNotFoundProblem(err.Error())
+		case errors.As(err, &validationError):
+			if len(validationError.Errors) > 0 {
+				problem = NewValidateProblemWithErrors(validationError.Error(), validationError.Errors)
+			} else {
+				problem = NewValidateProblem(validationError.Error())
+			}
 		case errors.As(err, &validationErrors):
 			problem = NewValidateProblem(validationErrors.Error())
 		case errors.Is(err, handlerutil.ErrUserAlreadyExists):
@@ -76,6 +84,8 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 			problem = NewUnauthorizedProblem("You must be logged in to access this resource")
 		case errors.Is(err, handlerutil.ErrInvalidUUID):
 			problem = NewValidateProblem("Invalid UUID format")
+		case errors.Is(err, handlerutil.ErrValidation):
+			problem = NewValidateProblem("Validation error")
 		case errors.Is(err, handlerutil.ErrNotFound):
 			problem = NewNotFoundProblem("Resource not found")
 		case errors.As(err, &internalDbError):
@@ -89,25 +99,57 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 		}
 	}
 
-	logger = logger.WithOptions(zap.AddCallerSkip(1))
+	return problem
+}
+
+// writeProblemResponse writes the Problem struct as JSON to the response writer
+func (h *HttpWriter) writeProblemResponse(w http.ResponseWriter, problem Problem, err error, logger *zap.Logger) {
+	logger = logger.WithOptions(zap.AddCallerSkip(2))
 
 	logger.Warn("Handling "+problem.Title, zap.String("problem", problem.Title), zap.Error(err), zap.Int("status", problem.Status), zap.String("type", problem.Type), zap.String("detail", problem.Detail))
 
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(problem.Status)
-	jsonBytes, err := json.Marshal(problem)
-	if err != nil {
-		logger.Error("Failed to marshal problem response", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	jsonBytes, marshalErr := json.Marshal(problem)
+	if marshalErr != nil {
+		logger.Error("Failed to marshal problem response", zap.Error(marshalErr))
+		http.Error(w, marshalErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	_, err = w.Write(jsonBytes)
-	if err != nil {
-		logger.Error("Failed to write problem response", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	_, writeErr := w.Write(jsonBytes)
+	if writeErr != nil {
+		logger.Error("Failed to write problem response", zap.Error(writeErr))
+		http.Error(w, writeErr.Error(), http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err error, logger *zap.Logger) {
+	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteError")
+	defer span.End()
+
+	if err == nil {
+		return
+	}
+
+	problem := h.buildProblem(err)
+	h.writeProblemResponse(w, problem, err, logger)
+}
+
+func (h *HttpWriter) WriteErrorWithRequest(ctx context.Context, r *http.Request, w http.ResponseWriter, err error, logger *zap.Logger) {
+	_, span := otel.Tracer("problem/problem").Start(ctx, "WriteErrorWithRequest")
+	defer span.End()
+
+	if err == nil {
+		return
+	}
+
+	problem := h.buildProblem(err)
+	if r != nil && r.URL != nil {
+		problem.Instance = r.URL.Path
+	}
+	h.writeProblemResponse(w, problem, err, logger)
 }
 
 func NewInternalServerProblem(detail string) Problem {
@@ -134,6 +176,16 @@ func NewValidateProblem(detail string) Problem {
 		Status: http.StatusBadRequest,
 		Type:   "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
 		Detail: detail,
+	}
+}
+
+func NewValidateProblemWithErrors(detail string, errors []string) Problem {
+	return Problem{
+		Title:  "Validation Problem",
+		Status: http.StatusBadRequest,
+		Type:   "https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/400",
+		Detail: detail,
+		Errors: errors,
 	}
 }
 
