@@ -36,7 +36,7 @@ func WrapDBError(err error, logger *zap.Logger, operation string) error {
 		return nil
 	}
 
-	logger.Error("Failed to "+operation, zap.Error(err))
+	logger.WithOptions(zap.AddCallerSkip(1)).Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -65,7 +65,7 @@ func WrapDBError(err error, logger *zap.Logger, operation string) error {
 		isUnknownError = true
 	}
 
-	logger.Warn("Wrapped database error", zap.Error(wrappedErr), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn("Wrapped database error", zap.Error(wrappedErr), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
@@ -75,7 +75,7 @@ func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Lo
 		return nil
 	}
 
-	logger.Error("Failed to "+operation, zap.Error(err))
+	logger.WithOptions(zap.AddCallerSkip(1)).Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -104,7 +104,7 @@ func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Lo
 		isUnknownError = true
 	}
 
-	logger.Warn("Wrapped database error with key value", zap.Error(wrappedErr), zap.String("table", table), zap.String("key", key), zap.String("value", value), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn("Wrapped database error with key value", zap.Error(wrappedErr), zap.String("table", table), zap.String("key", key), zap.String("value", value), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
