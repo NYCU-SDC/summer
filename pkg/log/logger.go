@@ -3,12 +3,13 @@ package logutil
 import (
 	"context"
 	"fmt"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // ZapProductionConfig returns a zap.Config same as zap.NewProduction() but without sampling
@@ -57,6 +58,18 @@ func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
 
 	if spanCtx.HasSpanID() {
 		logger = logger.With(zap.String("span_id", spanCtx.SpanID().String()))
+	}
+
+	if ctx.Value("user_id") != nil {
+		logger = logger.With(zap.Any("user_id", ctx.Value("user_id")))
+	}
+
+	if ctx.Value("username") != nil {
+		logger = logger.With(zap.Any("username", ctx.Value("username")))
+	}
+
+	if ctx.Value("name") != nil {
+		logger = logger.With(zap.Any("display-name", ctx.Value("name")))
 	}
 
 	return logger
