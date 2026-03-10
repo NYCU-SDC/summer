@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
-	"io"
-	"net/http"
 )
 
 func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *http.Request, s interface{}) error {
@@ -18,7 +19,7 @@ func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		span.RecordError(err)
-		return err
+		return NewValidationErrorWithErrors("invalid JSON payload", []string{err.Error()})
 	}
 	defer func() {
 		err := r.Body.Close()
@@ -30,7 +31,7 @@ func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *
 	err = json.Unmarshal(bodyBytes, s)
 	if err != nil {
 		span.RecordError(err)
-		return err
+		return NewValidationErrorWithErrors("invalid JSON payload", []string{err.Error()})
 	}
 
 	err = v.Struct(s)
