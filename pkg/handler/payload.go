@@ -19,7 +19,7 @@ func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *
 	bodyBytes, err := io.ReadAll(r.Body)
 	if err != nil {
 		span.RecordError(err)
-		return NewValidationErrorWithErrors("invalid JSON payload", []string{err.Error()})
+		return err
 	}
 	defer func() {
 		err := r.Body.Close()
