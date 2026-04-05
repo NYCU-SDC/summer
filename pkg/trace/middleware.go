@@ -92,11 +92,11 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 		)
 		span.AddEvent("HTTPRequestStarted")
 
-		logger = logutil.WithContext(ctx, logger)
+		reqLogger := logutil.WithContext(ctx, logger)
 		if upstream.HasTraceID() {
-			logger.Debug("Upstream trace available", zap.String("trace_id", upstream.TraceID().String()))
+			reqLogger.Debug("Upstream trace available", zap.String("trace_id", upstream.TraceID().String()))
 		} else {
-			logger.Debug("No upstream trace available, creating a new one", zap.String("trace_id", span.SpanContext().TraceID().String()))
+			reqLogger.Debug("No upstream trace available, creating a new one", zap.String("trace_id", span.SpanContext().TraceID().String()))
 		}
 
 		var bodyBytes []byte
@@ -105,13 +105,13 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 			var err error
 			bodyBytes, err = io.ReadAll(r.Body)
 			if err != nil {
-				writeBodyHandlingError(w, fmt.Errorf("failed to read request body: %w", err), logger)
+				writeBodyHandlingError(w, fmt.Errorf("failed to read request body: %w", err), reqLogger)
 				return
 			}
 
 			err = r.Body.Close()
 			if err != nil {
-				writeBodyHandlingError(w, fmt.Errorf("failed to close request body: %w", err), logger)
+				writeBodyHandlingError(w, fmt.Errorf("failed to close request body: %w", err), reqLogger)
 				return
 			}
 
@@ -119,6 +119,9 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 		}
 
 		crw := &CustomResponseWriter{ResponseWriter: w}
+		if debug {
+			crw.Body = new(bytes.Buffer)
+		}
 		next(crw, r.WithContext(ctx))
 
 		status := crw.StatusCode
@@ -131,9 +134,9 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 		}
 
 		if status >= 100 && status < 400 {
-			logger.Info("Request completed", fields...)
+			reqLogger.Info("Request completed", fields...)
 		} else if status >= 400 && status < 500 {
-			logger.Error("Client request rejected", fields...)
+			reqLogger.Error("Client request rejected", fields...)
 		} else {
 			if status == 500 && debug {
 				fields = append(fields,
@@ -143,7 +146,7 @@ func TraceMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) http
 					zap.String("response_body", crw.Body.String()),
 				)
 			}
-			logger.Error("Internal server error occurred", fields...)
+			reqLogger.Error("Internal server error occurred", fields...)
 		}
 	}
 }
@@ -154,20 +157,20 @@ func RecoverMiddleware(next http.HandlerFunc, logger *zap.Logger, debug bool) ht
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceCtx, span := tracer.Start(r.Context(), "RecoverMiddleware")
-		logger = logutil.WithContext(traceCtx, logger)
+		reqLogger := logutil.WithContext(traceCtx, logger)
 
 		defer func() {
 			needRecovery, errString, caller := PanicRecoveryError(recover())
 			if needRecovery {
 				span.AddEvent("PanicRecovered", trace.WithAttributes(attribute.String("panic", fmt.Sprintf("%v", errString))))
-				logger.Error("Recovered from panic", zap.Any("error", errString), zap.String("trace", fmt.Sprintf("%s", caller)))
+				reqLogger.Error("Recovered from panic", zap.Any("error", errString), zap.String("trace", fmt.Sprintf("%s", caller)))
 				if debug {
 					for _, line := range caller {
 						fmt.Printf("\t%s\n", line)
 					}
 				}
 
-				problem.New().WriteError(context.Background(), w, handlerutil.ErrInternalServer, logger)
+				problem.New().WriteError(context.Background(), w, handlerutil.ErrInternalServer, reqLogger)
 			}
 
 			span.End()
