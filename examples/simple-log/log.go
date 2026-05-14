@@ -1,4 +1,4 @@
-package logutil_test
+package main
 
 import (
 	"context"
@@ -30,6 +30,10 @@ func main() {
 		logutil.ErrorInfoOperation: "create_user",
 		logutil.ErrorInfoField:     "email",
 		logutil.ErrorInfoRetryable: false,
+	})
+
+	err = logutil.WrapInfoError(err, map[string]any{
+		"test": "helloworld",
 	})
 
 	logutil.Error(ctx, eventLogger, "create user rejected", err, zap.String("email.domain", "example.com"))
