@@ -11,8 +11,16 @@ type contextFieldsKey struct{}
 
 type contextFields map[string]zap.Field
 
-// WithFields returns a child context enriched with request-scoped logging fields.
-// Fields with the same key replace earlier fields to avoid duplicate log keys.
+type userIDKey struct{}
+type usernameKey struct{}
+type displayNameKey struct{}
+type requestIDKey struct{}
+
+// WithFields returns a child context enriched with structured logging fields.
+//
+// The fields are later injected into a logger by Constructs or by the level
+// helpers in logger.go. Fields with an empty key are ignored. Fields with the
+// same key replace earlier values so a log entry does not emit duplicate keys.
 func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
@@ -26,65 +34,228 @@ func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
 	}
 
 	for _, field := range fields {
+		if field.Key == "" {
+			continue
+		}
+
 		next[field.Key] = field
 	}
 
 	return context.WithValue(ctx, contextFieldsKey{}, next)
 }
 
-func WithOutcome(outcome string, logger *zap.Logger) *zap.Logger {
-	if logger == nil || outcome == "" {
-		return logger
+// WithUserID returns a child context carrying the authenticated user's ID.
+//
+// Constructs emits this value as enduser.id. Empty user IDs are ignored.
+func WithUserID(ctx context.Context, userID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return logger.With(zap.String("event.outcome", outcome))
+
+	if userID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, userIDKey{}, userID)
 }
 
-func WithEventName(actionName string, logger *zap.Logger) *zap.Logger {
-	if logger == nil || actionName == "" {
-		return logger
+// WithUsername returns a child context carrying the authenticated username.
+//
+// Constructs emits this value as enduser.username. Empty usernames are ignored.
+func WithUsername(ctx context.Context, username string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return logger.With(zap.String("event.name", actionName))
+
+	if username == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, usernameKey{}, username)
 }
 
-func WithReason(reason string, logger *zap.Logger) *zap.Logger {
-	if logger == nil || reason == "" {
-		return logger
+// WithDisplayName returns a child context carrying the user's display name.
+//
+// Constructs emits this value as enduser.name. Empty names are ignored.
+func WithDisplayName(ctx context.Context, name string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return logger.With(zap.String("event.kind", reason))
+
+	if name == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, displayNameKey{}, name)
 }
 
-func WithErrorType(errorKind ErrorType, logger *zap.Logger) *zap.Logger {
-	if logger == nil || errorKind == "" {
-		return logger
+// WithRequestID returns a child context carrying an application request ID.
+//
+// Constructs emits this value as request.id. Empty request IDs are ignored.
+func WithRequestID(ctx context.Context, requestID string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	return logger.With(zap.String("error.type", string(errorKind)))
+
+	if requestID == "" {
+		return ctx
+	}
+
+	return context.WithValue(ctx, requestIDKey{}, requestID)
 }
 
-func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
+// WithTraceContext returns logger enriched with the active span context.
+//
+// When ctx contains a valid OpenTelemetry span, the returned logger includes
+// trace_id, span_id, trace_flags, trace_sampled, and trace_state when present.
+// A nil logger is treated as zap.NewNop.
+func WithTraceContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	if ctx == nil {
 		return logger
 	}
 
 	spanCtx := trace.SpanFromContext(ctx).SpanContext()
-	if spanCtx.HasTraceID() {
-		logger = logger.With(zap.String("trace_id", spanCtx.TraceID().String()))
+	if !spanCtx.IsValid() {
+		return logger
 	}
 
-	if spanCtx.HasSpanID() {
-		logger = logger.With(zap.String("span_id", spanCtx.SpanID().String()))
+	fields := []zap.Field{
+		zap.String("trace_id", spanCtx.TraceID().String()),
+		zap.String("span_id", spanCtx.SpanID().String()),
+		zap.String("trace_flags", spanCtx.TraceFlags().String()),
+		zap.Bool("trace_sampled", spanCtx.IsSampled()),
 	}
 
-	if ctx.Value("user_id") != nil {
-		logger = logger.With(zap.Any("user_id", ctx.Value("user_id")))
+	if traceState := spanCtx.TraceState().String(); traceState != "" {
+		fields = append(fields, zap.String("trace_state", traceState))
 	}
 
-	if ctx.Value("username") != nil {
-		logger = logger.With(zap.Any("username", ctx.Value("username")))
+	return logger.With(fields...)
+}
+
+// WithUserContext returns logger enriched with user and request fields from ctx.
+//
+// It reads values written by WithUserID, WithUsername, WithDisplayName, and
+// WithRequestID. If no values are present, logger is returned unchanged. A nil
+// logger is treated as zap.NewNop.
+func WithUserContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
+	if logger == nil {
+		logger = zap.NewNop()
 	}
 
-	if ctx.Value("name") != nil {
-		logger = logger.With(zap.Any("display-name", ctx.Value("name")))
+	if ctx == nil {
+		return logger
 	}
 
-	return logger
+	fields := make([]zap.Field, 0, 4)
+
+	if userID, ok := ctx.Value(userIDKey{}).(string); ok && userID != "" {
+		fields = append(fields, zap.String("enduser.id", userID))
+	}
+
+	if username, ok := ctx.Value(usernameKey{}).(string); ok && username != "" {
+		fields = append(fields, zap.String("enduser.username", username))
+	}
+
+	if name, ok := ctx.Value(displayNameKey{}).(string); ok && name != "" {
+		fields = append(fields, zap.String("enduser.name", name))
+	}
+
+	if requestID, ok := ctx.Value(requestIDKey{}).(string); ok && requestID != "" {
+		fields = append(fields, zap.String("request.id", requestID))
+	}
+
+	if len(fields) == 0 {
+		return logger
+	}
+
+	return logger.With(fields...)
+}
+
+// WithOutcome returns logger enriched with event.outcome.
+//
+// This string-based helper is useful for custom outcome values. Prefer
+// WithEventOutcome when the value fits the EventOutcome constants.
+func WithOutcome(outcome string, logger *zap.Logger) *zap.Logger {
+	if logger == nil || outcome == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("event.outcome", outcome))
+}
+
+// WithEventOutcome returns logger enriched with a typed event.outcome value.
+//
+// Event outcome describes whether an event succeeded, failed, timed out, was
+// cancelled, or has an unknown result.
+func WithEventOutcome(outcome EventOutcome, logger *zap.Logger) *zap.Logger {
+	if logger == nil || outcome == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("event.outcome", string(outcome)))
+}
+
+// WithEventName returns logger enriched with event.name.
+//
+// Use event.name for the stable, human-readable event identity, such as
+// "user.login" or "profile.update".
+func WithEventName(eventName string, logger *zap.Logger) *zap.Logger {
+	if logger == nil || eventName == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("event.name", eventName))
+}
+
+// WithEventDomain returns logger enriched with event.domain.
+//
+// Use event.domain to group events by bounded context, subsystem, or product
+// area, such as "auth", "database", or "billing".
+func WithEventDomain(domain string, logger *zap.Logger) *zap.Logger {
+	if logger == nil || domain == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("event.domain", domain))
+}
+
+// WithEventAction returns logger enriched with event.action.
+//
+// Use event.action for the operation performed within an event, such as
+// "create", "update", "delete", "login", or "refresh".
+func WithEventAction(action string, logger *zap.Logger) *zap.Logger {
+	if logger == nil || action == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("event.action", action))
+}
+
+// WithReason returns logger enriched with event.reason.
+//
+// Use event.reason for the structured reason an event took a branch, failed,
+// was rejected, or was skipped.
+func WithReason(reason string, logger *zap.Logger) *zap.Logger {
+	if logger == nil || reason == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("event.reason", reason))
+}
+
+// WithErrorType returns logger enriched with error.type.
+//
+// Use error.type for a stable machine-readable error classification. Prefer the
+// ErrorType constants when the error maps to a canonical status-like category.
+func WithErrorType(errorType ErrorType, logger *zap.Logger) *zap.Logger {
+	if logger == nil || errorType == "" {
+		return logger
+	}
+
+	return logger.With(zap.String("error.type", string(errorType)))
 }
