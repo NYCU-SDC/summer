@@ -13,6 +13,8 @@
 // Use this path when a logger already represents a specific event, domain
 // operation, or error handling branch.
 //
-// Error helpers in this package are for extracting structured log fields from
-// errors. They should not be used as a general domain error wrapping policy.
+// Error helpers in this package let errors carry structured detail to the place
+// where they are logged. Domain errors may implement InfoCarrier directly, while
+// WrapInfoError and WrapTypedInfoError can attach detail to an existing error
+// when passing it across an API boundary.
 package logutil

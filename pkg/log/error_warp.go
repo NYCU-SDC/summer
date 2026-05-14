@@ -2,7 +2,6 @@ package logutil
 
 import (
 	"errors"
-	"reflect"
 	"runtime/debug"
 
 	"go.uber.org/zap"
@@ -182,8 +181,6 @@ func ErrorFields(err error) []zap.Field {
 	fields := []zap.Field{
 		zap.Error(err),
 		zap.String("error.message", err.Error()),
-		zap.String("exception.message", err.Error()),
-		zap.String("exception.type", errorGoType(err)),
 	}
 
 	if errorType := ErrorTypeFromError(err); errorType != "" {
@@ -235,25 +232,4 @@ func InfoFieldsFromError(prefix string, err error) []zap.Field {
 	}
 
 	return fields
-}
-
-func errorGoType(err error) string {
-	if err == nil {
-		return ""
-	}
-
-	t := reflect.TypeOf(err)
-	if t == nil {
-		return ""
-	}
-
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-
-	if t.PkgPath() == "" {
-		return t.Name()
-	}
-
-	return t.PkgPath() + "." + t.Name()
 }

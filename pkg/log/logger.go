@@ -128,9 +128,7 @@ func Error(ctx context.Context, logger *zap.Logger, msg string, err error, field
 	if err != nil {
 		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
 	}
-
 	fields = append(fields, codeFields(1)...)
-
 	logger.Error(msg, fields...)
 }
 
@@ -141,13 +139,10 @@ func Error(ctx context.Context, logger *zap.Logger, msg string, err error, field
 // in development but should not necessarily terminate production services.
 func DPanic(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
-
 	if err != nil {
 		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
 	}
-
 	fields = append(fields, codeFields(1)...)
-
 	logger.DPanic(msg, fields...)
 }
 
@@ -157,13 +152,10 @@ func DPanic(ctx context.Context, logger *zap.Logger, msg string, err error, fiel
 // intentionally aborting the current control flow.
 func Panic(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
-
 	if err != nil {
 		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
 	}
-
 	fields = append(fields, codeFields(1)...)
-
 	logger.Panic(msg, fields...)
 }
 
@@ -173,13 +165,10 @@ func Panic(ctx context.Context, logger *zap.Logger, msg string, err error, field
 // behavior. Use this only for unrecoverable process startup or runtime failures.
 func Fatal(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
-
 	if err != nil {
 		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
 	}
-
 	fields = append(fields, codeFields(1)...)
-
 	logger.Fatal(msg, fields...)
 }
 
