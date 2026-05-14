@@ -19,6 +19,7 @@ const (
 	MSSQLErrDeadlockDetected    = 1205 // Deadlock detected
 )
 
+// Deprecated: database errors should no longer be wrapped. Return domain errors directly and attach log fields through pkg/log instead.
 func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
@@ -58,6 +59,7 @@ func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 	return wrappedErr
 }
 
+// Deprecated: database errors should no longer be wrapped. Return domain errors directly and attach log fields through pkg/log instead.
 func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil

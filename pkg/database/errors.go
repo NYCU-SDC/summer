@@ -31,6 +31,7 @@ func (e InternalServerError) Error() string {
 	return fmt.Sprintf("internal server error: %s", e.Source.Error())
 }
 
+// Deprecated: database errors should no longer be wrapped. Return domain errors directly and attach log fields through pkg/log instead.
 func WrapDBError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
@@ -70,6 +71,7 @@ func WrapDBError(err error, logger *zap.Logger, operation string) error {
 	return wrappedErr
 }
 
+// Deprecated: database errors should no longer be wrapped. Return domain errors directly and attach log fields through pkg/log instead.
 func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
