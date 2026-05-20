@@ -3,6 +3,7 @@ package logutil
 import (
 	"context"
 
+	errutil "github.com/NYCU-SDC/summer/pkg/error"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -212,30 +213,6 @@ func WithEventName(eventName string, logger *zap.Logger) *zap.Logger {
 	return logger.With(zap.String("event.name", eventName))
 }
 
-// WithEventDomain returns logger enriched with event.domain.
-//
-// Use event.domain to group events by bounded context, subsystem, or product
-// area, such as "auth", "database", or "billing".
-func WithEventDomain(domain string, logger *zap.Logger) *zap.Logger {
-	if logger == nil || domain == "" {
-		return logger
-	}
-
-	return logger.With(zap.String("event.domain", domain))
-}
-
-// WithEventAction returns logger enriched with event.action.
-//
-// Use event.action for the operation performed within an event, such as
-// "create", "update", "delete", "login", or "refresh".
-func WithEventAction(action string, logger *zap.Logger) *zap.Logger {
-	if logger == nil || action == "" {
-		return logger
-	}
-
-	return logger.With(zap.String("event.action", action))
-}
-
 // WithReason returns logger enriched with event.reason.
 //
 // Use event.reason for the structured reason an event took a branch, failed,
@@ -251,8 +228,9 @@ func WithReason(reason string, logger *zap.Logger) *zap.Logger {
 // WithErrorType returns logger enriched with error.type.
 //
 // Use error.type for a stable machine-readable error classification. Prefer the
-// ErrorType constants when the error maps to a canonical status-like category.
-func WithErrorType(errorType ErrorType, logger *zap.Logger) *zap.Logger {
+// errutil.ErrorType constants when the error maps to a canonical status-like
+// category.
+func WithErrorType(errorType errutil.ErrorType, logger *zap.Logger) *zap.Logger {
 	if logger == nil || errorType == "" {
 		return logger
 	}

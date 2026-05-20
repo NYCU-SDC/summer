@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	errutil "github.com/NYCU-SDC/summer/pkg/error"
 	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"go.uber.org/zap"
 )
@@ -11,28 +12,26 @@ import (
 func main() {
 	logger := zap.NewExample()
 
-	// Context fields are attached once and reused by every log call in this flow.
-	ctx := context.Background()
-	ctx = logutil.WithRequestID(ctx, "req-7")
-	ctx = logutil.WithUserID(ctx, "user-42")
-	ctx = logutil.WithFields(ctx, zap.String("service.name", "account-api"))
-
-	// Logger decorators describe the event without passing the same fields again.
-	eventLogger := logutil.WithEventDomain("identity", logger)
-	eventLogger = logutil.WithEventName("user.create", eventLogger)
-	eventLogger = logutil.WithEventAction("create", eventLogger)
+	ctx, eventLogger := logutil.SetupFlow(
+		context.Background(),
+		logger,
+		"user.create",
+		zap.String("request.id", "req-7"),
+		zap.String("enduser.id", "user-42"),
+		zap.String("service.name", "account-api"),
+	)
 	eventLogger = logutil.WithEventOutcome(logutil.EventOutcomeFailure, eventLogger)
 
 	baseErr := errors.New("email already exists")
 
 	// Wrap the error when it needs to carry detail to the logging layer.
-	err := logutil.WrapTypedInfoError(logutil.ALREADY_EXISTS, baseErr, map[logutil.ErrorInfoKey]any{
-		logutil.ErrorInfoOperation: "create_user",
-		logutil.ErrorInfoField:     "email",
-		logutil.ErrorInfoRetryable: false,
+	err := errutil.WrapTypedInfoError(errutil.ALREADY_EXISTS, baseErr, map[errutil.ErrorInfoKey]any{
+		errutil.ErrorInfoOperation: "create_user",
+		errutil.ErrorInfoField:     "email",
+		errutil.ErrorInfoRetryable: false,
 	})
 
-	err = logutil.WrapInfoError(err, map[string]any{
+	err = errutil.WrapInfoError(err, map[string]any{
 		"test": "helloworld",
 	})
 

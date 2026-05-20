@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 
+	errutil "github.com/NYCU-SDC/summer/pkg/error"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -121,12 +122,13 @@ func Warn(ctx context.Context, logger *zap.Logger, msg string, fields ...zap.Fie
 //
 // When err is non-nil, Error adds zap.Error, error.message,
 // exception.message, exception.type, exception.stacktrace, any error.type from
-// ErrorTypeCarrier, and any structured error.info fields from InfoCarrier.
+// errutil.ErrorTypeCarrier, and any structured error.info fields from
+// errutil.InfoCarrier.
 func Error(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
 
 	if err != nil {
-		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
+		fields = append(fields, errutil.ErrorFieldsWithStacktrace(err)...)
 	}
 	fields = append(fields, codeFields(1)...)
 	logger.Error(msg, fields...)
@@ -140,7 +142,7 @@ func Error(ctx context.Context, logger *zap.Logger, msg string, err error, field
 func DPanic(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
 	if err != nil {
-		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
+		fields = append(fields, errutil.ErrorFieldsWithStacktrace(err)...)
 	}
 	fields = append(fields, codeFields(1)...)
 	logger.DPanic(msg, fields...)
@@ -153,7 +155,7 @@ func DPanic(ctx context.Context, logger *zap.Logger, msg string, err error, fiel
 func Panic(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
 	if err != nil {
-		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
+		fields = append(fields, errutil.ErrorFieldsWithStacktrace(err)...)
 	}
 	fields = append(fields, codeFields(1)...)
 	logger.Panic(msg, fields...)
@@ -166,7 +168,7 @@ func Panic(ctx context.Context, logger *zap.Logger, msg string, err error, field
 func Fatal(ctx context.Context, logger *zap.Logger, msg string, err error, fields ...zap.Field) {
 	logger = Constructs(ctx, logger)
 	if err != nil {
-		fields = append(fields, ErrorFieldsWithStacktrace(err)...)
+		fields = append(fields, errutil.ErrorFieldsWithStacktrace(err)...)
 	}
 	fields = append(fields, codeFields(1)...)
 	logger.Fatal(msg, fields...)
