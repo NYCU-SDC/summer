@@ -1,6 +1,6 @@
 module github.com/NYCU-SDC/summer
 
-go 1.24.2
+go 1.26.2
 
 require (
 	github.com/go-playground/validator/v10 v10.26.0
