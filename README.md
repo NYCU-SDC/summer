@@ -54,7 +54,7 @@ summer -v   # verify
 go get github.com/NYCU-SDC/summer
 ```
 
-Requires Go 1.24+.
+Requires Go 1.25+.
 
 ---
 
@@ -177,7 +177,8 @@ Reads the request body, unmarshals JSON into `s`, and runs `go-playground/valida
 
 ```go
 var req CreateUserRequest
-if err := handlerutil.ParseAndValidateRequestBody(ctx, h.validator, r, &req); err != nil {
+err := handlerutil.ParseAndValidateRequestBody(ctx, h.validator, r, &req)
+if err != nil {
     h.problemWriter.WriteError(ctx, w, err, logger)
     return
 }
@@ -288,7 +289,7 @@ import "github.com/NYCU-SDC/summer/pkg/middleware"
 
 // Create a set from one or more middlewares
 basicMiddleware := middleware.NewSet(traceMiddleware.RecoverMiddleware)
-basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleWare)
+basicMiddleware = basicMiddleware.Append(traceMiddleware.TraceMiddleware)
 
 // Append does NOT modify the original — it returns a new Set
 authMiddleware := basicMiddleware.Append(jwtMiddleware.HandlerFunc)
