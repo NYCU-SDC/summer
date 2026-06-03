@@ -24,9 +24,9 @@ func TestSetupFlowInitializesContextAndLogger(t *testing.T) {
 		zap.String("service.name", "account-api"),
 		zap.String("route", "/users"),
 	)
+	ctx = WithReason(ctx, "duplicate_email")
+	ctx = WithErrorType(ctx, errutil.ALREADY_EXISTS)
 	logger = WithEventOutcome(EventOutcomeFailure, logger)
-	logger = WithReason("duplicate_email", logger)
-	logger = WithErrorType(errutil.ALREADY_EXISTS, logger)
 
 	if ctx == nil {
 		t.Fatal("SetupFlow returned nil context")

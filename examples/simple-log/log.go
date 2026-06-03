@@ -22,17 +22,16 @@ func main() {
 	)
 	eventLogger = logutil.WithEventOutcome(logutil.EventOutcomeFailure, eventLogger)
 
+	ctx = logutil.WithErrorType(ctx, errutil.ALREADY_EXISTS)
+	ctx = logutil.WithReason(ctx, "duplicate_email")
+
 	baseErr := errors.New("email already exists")
 
 	// Wrap the error when it needs to carry detail to the logging layer.
-	err := errutil.WrapTypedInfoError(errutil.ALREADY_EXISTS, baseErr, map[errutil.ErrorInfoKey]any{
+	err := errutil.WrapInfoError(baseErr, map[errutil.ErrorInfoKey]any{
 		errutil.ErrorInfoOperation: "create_user",
 		errutil.ErrorInfoField:     "email",
 		errutil.ErrorInfoRetryable: false,
-	})
-
-	err = errutil.WrapInfoError(err, map[string]any{
-		"test": "helloworld",
 	})
 
 	logutil.Error(ctx, eventLogger, "create user rejected", err, zap.String("email.domain", "example.com"))

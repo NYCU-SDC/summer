@@ -105,6 +105,39 @@ func WithRequestID(ctx context.Context, requestID string) context.Context {
 	return context.WithValue(ctx, requestIDKey{}, requestID)
 }
 
+// WithReason returns a child context carrying event.reason.
+//
+// Use event.reason for the structured reason an event took a branch, failed,
+// was rejected, or was skipped.
+func WithReason(ctx context.Context, reason string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if reason == "" {
+		return ctx
+	}
+
+	return WithFields(ctx, zap.String("event.reason", reason))
+}
+
+// WithErrorType returns a child context carrying error.type.
+//
+// Use error.type for a stable machine-readable error classification. Prefer the
+// errutil.ErrorType constants when the error maps to a canonical status-like
+// category.
+func WithErrorType(ctx context.Context, errorType errutil.ErrorType) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if errorType == "" {
+		return ctx
+	}
+
+	return WithFields(ctx, zap.String("error.type", string(errorType)))
+}
+
 // WithTraceContext returns logger enriched with the active span context.
 //
 // When ctx contains a valid OpenTelemetry span, the returned logger includes
@@ -211,29 +244,4 @@ func WithEventName(eventName string, logger *zap.Logger) *zap.Logger {
 	}
 
 	return logger.With(zap.String("event.name", eventName))
-}
-
-// WithReason returns logger enriched with event.reason.
-//
-// Use event.reason for the structured reason an event took a branch, failed,
-// was rejected, or was skipped.
-func WithReason(reason string, logger *zap.Logger) *zap.Logger {
-	if logger == nil || reason == "" {
-		return logger
-	}
-
-	return logger.With(zap.String("event.reason", reason))
-}
-
-// WithErrorType returns logger enriched with error.type.
-//
-// Use error.type for a stable machine-readable error classification. Prefer the
-// errutil.ErrorType constants when the error maps to a canonical status-like
-// category.
-func WithErrorType(errorType errutil.ErrorType, logger *zap.Logger) *zap.Logger {
-	if logger == nil || errorType == "" {
-		return logger
-	}
-
-	return logger.With(zap.String("error.type", string(errorType)))
 }
