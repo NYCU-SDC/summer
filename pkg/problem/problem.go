@@ -7,7 +7,9 @@ import (
 	"net/http"
 
 	"github.com/NYCU-SDC/summer/pkg/database"
+	errutil "github.com/NYCU-SDC/summer/pkg/error"
 	"github.com/NYCU-SDC/summer/pkg/handler"
+	logutil "github.com/NYCU-SDC/summer/pkg/log"
 	"github.com/NYCU-SDC/summer/pkg/pagination"
 	"github.com/go-playground/validator/v10"
 	"go.opentelemetry.io/otel"
@@ -103,23 +105,52 @@ func (h *HttpWriter) buildProblem(err error) Problem {
 }
 
 // writeProblemResponse writes the Problem struct as JSON to the response writer
-func (h *HttpWriter) writeProblemResponse(w http.ResponseWriter, problem Problem, err error, logger *zap.Logger) {
-	logger = logger.WithOptions(zap.AddCallerSkip(2))
+func (h *HttpWriter) writeProblemResponse(ctx context.Context, w http.ResponseWriter, problem Problem, err error, logger *zap.Logger) {
+	logger = logutil.Constructs(ctx, logger).WithOptions(zap.AddCallerSkip(2))
 
-	logger.Warn("Handling "+problem.Title, zap.String("problem", problem.Title), zap.Error(err), zap.Int("status", problem.Status), zap.String("type", problem.Type), zap.String("detail", problem.Detail))
+	fields := []zap.Field{
+		zap.Int("http.status_code", problem.Status),
+		zap.String("problem.type", problem.Type),
+		zap.String("problem.title", problem.Title),
+		zap.String("problem.detail", problem.Detail),
+		zap.String("error.kind", problemErrorKind(problem.Status)),
+	}
+	if problem.Instance != "" {
+		fields = append(fields, zap.String("problem.instance", problem.Instance))
+	}
+
+	if problem.Status >= http.StatusInternalServerError {
+		fields = append(fields, errutil.ErrorFieldsWithStacktrace(err)...)
+		logger.Error("request failed", fields...)
+	} else {
+		fields = append(fields, errutil.ErrorFields(err)...)
+		logger.Warn("request failed", fields...)
+	}
 
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(problem.Status)
 	jsonBytes, marshalErr := json.Marshal(problem)
 	if marshalErr != nil {
-		logger.Error("Failed to marshal problem response", zap.Error(marshalErr))
+		marshalFields := []zap.Field{
+			zap.Int("http.status_code", http.StatusInternalServerError),
+			zap.String("problem.title", "Internal Server Error"),
+			zap.String("error.kind", problemErrorKind(http.StatusInternalServerError)),
+		}
+		marshalFields = append(marshalFields, errutil.ErrorFields(marshalErr)...)
+		logger.Error("problem response marshal failed", marshalFields...)
 		http.Error(w, marshalErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	_, writeErr := w.Write(jsonBytes)
 	if writeErr != nil {
-		logger.Error("Failed to write problem response", zap.Error(writeErr))
+		writeFields := []zap.Field{
+			zap.Int("http.status_code", http.StatusInternalServerError),
+			zap.String("problem.title", "Internal Server Error"),
+			zap.String("error.kind", problemErrorKind(http.StatusInternalServerError)),
+		}
+		writeFields = append(writeFields, errutil.ErrorFields(writeErr)...)
+		logger.Error("problem response write failed", writeFields...)
 		http.Error(w, writeErr.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -134,7 +165,7 @@ func (h *HttpWriter) WriteError(ctx context.Context, w http.ResponseWriter, err 
 	}
 
 	problem := h.buildProblem(err)
-	h.writeProblemResponse(w, problem, err, logger)
+	h.writeProblemResponse(ctx, w, problem, err, logger)
 }
 
 func (h *HttpWriter) WriteErrorWithRequest(ctx context.Context, r *http.Request, w http.ResponseWriter, err error, logger *zap.Logger) {
@@ -149,7 +180,32 @@ func (h *HttpWriter) WriteErrorWithRequest(ctx context.Context, r *http.Request,
 	if r != nil && r.URL != nil {
 		problem.Instance = r.URL.Path
 	}
-	h.writeProblemResponse(w, problem, err, logger)
+	h.writeProblemResponse(ctx, w, problem, err, logger)
+}
+
+func problemErrorKind(status int) string {
+	switch status {
+	case http.StatusBadRequest:
+		return "INVALID_ARGUMENT"
+	case http.StatusUnauthorized:
+		return "UNAUTHENTICATED"
+	case http.StatusForbidden:
+		return "PERMISSION_DENIED"
+	case http.StatusNotFound:
+		return "NOT_FOUND"
+	case http.StatusConflict:
+		return "ALREADY_EXISTS"
+	case http.StatusTooManyRequests:
+		return "RESOURCE_EXHAUSTED"
+	case http.StatusRequestTimeout, http.StatusGatewayTimeout:
+		return "DEADLINE_EXCEEDED"
+	}
+
+	if status >= http.StatusInternalServerError {
+		return "INTERNAL"
+	}
+
+	return "UNKNOWN"
 }
 
 func NewInternalServerProblem(detail string) Problem {

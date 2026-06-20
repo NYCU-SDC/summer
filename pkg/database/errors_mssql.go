@@ -19,51 +19,45 @@ const (
 	MSSQLErrDeadlockDetected    = 1205 // Deadlock detected
 )
 
+// Deprecated: database errors are classified here without logging. Return domain errors directly for new code.
 func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
 	}
 
-	logger.Error("Failed to "+operation, zap.Error(err))
-
 	var wrappedErr error
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		wrappedErr = fmt.Errorf("%w: %v", errorPkg.ErrNotFound, err)
+		wrappedErr = fmt.Errorf("%w: %w", errorPkg.ErrNotFound, err)
 	case errors.Is(err, context.DeadlineExceeded):
-		wrappedErr = fmt.Errorf("%w: %v", ErrQueryTimeout, err)
+		wrappedErr = fmt.Errorf("%w: %w", ErrQueryTimeout, err)
 	default:
 		var mssqlErr mssql.Error
 		if errors.As(err, &mssqlErr) {
 			switch mssqlErr.Number {
 			case MSSQLErrUniqueViolation, MSSQLErrUniqueIndex:
-				wrappedErr = fmt.Errorf("%w: %v", ErrUniqueViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrUniqueViolation, err)
 			case MSSQLErrForeignKeyViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrForeignKeyViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 			case MSSQLErrDeadlockDetected:
-				wrappedErr = fmt.Errorf("%w: %v", ErrDeadlockDetected, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrDeadlockDetected, err)
 			}
 		}
 	}
 
-	isUnknownError := false
 	if wrappedErr == nil {
 		wrappedErr = InternalServerError{Source: err}
-		isUnknownError = true
 	}
-
-	logger.Warn("Wrapped database error", zap.Error(wrappedErr), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
 
+// Deprecated: database errors are classified here without logging. Return domain errors directly for new code.
 func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
 	}
-
-	logger.Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -71,28 +65,24 @@ func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap
 	case errors.Is(err, sql.ErrNoRows):
 		wrappedErr = errorPkg.NewNotFoundError(table, key, value, "")
 	case errors.Is(err, context.DeadlineExceeded):
-		wrappedErr = fmt.Errorf("%w: %v", ErrQueryTimeout, err)
+		wrappedErr = fmt.Errorf("%w: %w", ErrQueryTimeout, err)
 	default:
 		var mssqlErr mssql.Error
 		if errors.As(err, &mssqlErr) {
 			switch mssqlErr.Number {
 			case MSSQLErrUniqueViolation, MSSQLErrUniqueIndex:
-				wrappedErr = fmt.Errorf("%w: %v", ErrUniqueViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrUniqueViolation, err)
 			case MSSQLErrForeignKeyViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrForeignKeyViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 			case MSSQLErrDeadlockDetected:
-				wrappedErr = fmt.Errorf("%w: %v", ErrDeadlockDetected, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrDeadlockDetected, err)
 			}
 		}
 	}
 
-	isUnknownError := false
 	if wrappedErr == nil {
 		wrappedErr = InternalServerError{Source: err}
-		isUnknownError = true
 	}
-
-	logger.Warn("Wrapped database error with key value", zap.Error(wrappedErr), zap.String("table", table), zap.String("key", key), zap.String("value", value), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
