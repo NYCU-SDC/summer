@@ -16,7 +16,7 @@ type MigrateLogger struct {
 	logger *zap.Logger
 }
 
-func (z *MigrateLogger) Printf(format string, v ...interface{}) {
+func (z *MigrateLogger) Printf(format string, v ...any) {
 	message := fmt.Sprintf(format, v...)
 	message = strings.TrimSpace(message)
 	z.logger.Info("Migration event", zap.String("migration", message))
