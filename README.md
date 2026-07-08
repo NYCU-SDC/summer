@@ -454,6 +454,32 @@ err = databaseutil.WrapMSSQLErrorWithKeyValue(err, "users", "id", id.String(), l
 - If `db` is already `pgx.Tx`, the callback runs on that transaction — no begin/commit/rollback here.
 - Otherwise `db` must implement `TxBeginner` (e.g. `*pgxpool.Pool`): begin, callback, commit on success, rollback on error or panic.
 - Return a non-nil error from the callback to abort and roll back. Do not call `Commit` or `Rollback` inside the callback unless you have a deliberate sub-transaction design.
+- Each `Run()` or `RunWithDBTx()` call is one transaction. Put every query that must commit or roll back together inside that single callback — do not split related work across multiple calls.
+
+```go
+// Incorrect — two separate transactions; Debit may commit even if Credit fails
+err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    Run(func(qtx *user.Queries) error {
+        return qtx.Debit(ctx, params)
+    })
+if err != nil {
+    return err
+}
+return databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    Run(func(qtx *user.Queries) error {
+        return qtx.Credit(ctx, creditParams)
+    })
+
+// Correct — Debit and Credit share one transaction
+err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    Run(func(qtx *user.Queries) error {
+        err := qtx.Debit(ctx, params)
+        if err != nil {
+            return databaseutil.WrapDBError(err, logger, "debit account")
+        }
+        return qtx.Credit(ctx, creditParams)
+    })
+```
 
 | API                                      | Use when                                               |
 | ---------------------------------------- | ------------------------------------------------------ |
@@ -465,21 +491,9 @@ Begin/commit failures are wrapped with `WrapDBError`. Unsupported connections re
 
 ##### WithTransactionQueries
 
-Prefer this for sqlc call sites. `Run` binds `queries.WithTx(tx)` for you; `RunWithDBTx` also passes `pgx.Tx` when another API needs the same transaction.
+Prefer this for sqlc call sites. `Run` binds `queries.WithTx(tx)` for you; use it when every database access in the callback goes through `qtx` (see the example above). `RunWithDBTx` also passes `pgx.Tx` when another service must share the same transaction:
 
 ```go
-// All work through transaction-scoped queries
-err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
-    Run(func(qtx *user.Queries) error {
-        err := qtx.Debit(ctx, params)
-        if err != nil {
-            return databaseutil.WrapDBError(err, logger, "debit account")
-        }
-
-        return qtx.Credit(ctx, creditParams)
-    })
-
-// Share pgx.Tx with another service in the same transaction
 err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
     RunWithDBTx(func(tx pgx.Tx, qtx *user.Queries) error {
         err := audit.Log(ctx, tx, event)
