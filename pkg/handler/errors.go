@@ -48,7 +48,7 @@ func NewNotFoundError(table, key, value, message string) NotFoundError {
 
 type ValidationError struct {
 	Field   string
-	Value   interface{}
+	Value   any
 	Message string
 	Errors  []string
 }
@@ -67,7 +67,7 @@ func (e ValidationError) Is(target error) bool {
 	return errors.Is(target, ErrValidation)
 }
 
-func NewValidationError(field string, value interface{}, message string) ValidationError {
+func NewValidationError(field string, value any, message string) ValidationError {
 	return ValidationError{
 		Field:   field,
 		Value:   value,

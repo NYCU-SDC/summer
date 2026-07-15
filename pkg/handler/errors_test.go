@@ -95,7 +95,7 @@ func TestNewValidationError(t *testing.T) {
 	tests := []struct {
 		name    string
 		field   string
-		value   interface{}
+		value   any
 		message string
 		want    ValidationError
 	}{

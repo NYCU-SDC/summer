@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *http.Request, s interface{}) error {
+func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *http.Request, s any) error {
 	_, span := otel.Tracer("internal/handler").Start(ctx, "ParseAndValidateRequestBody")
 	defer span.End()
 
@@ -43,7 +43,7 @@ func ParseAndValidateRequestBody(ctx context.Context, v *validator.Validate, r *
 	return nil
 }
 
-func WriteJSONResponse(w http.ResponseWriter, status int, data interface{}) {
+func WriteJSONResponse(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	jsonBytes, err := json.Marshal(data)

@@ -227,7 +227,7 @@ func TestProblem_JSONSerialization(t *testing.T) {
 			}
 
 			// Compare JSON strings
-			var gotMap, wantMap map[string]interface{}
+			var gotMap, wantMap map[string]any
 			if err := json.Unmarshal(got, &gotMap); err != nil {
 				t.Fatalf("Failed to unmarshal got JSON: %v", err)
 			}
