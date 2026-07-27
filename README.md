@@ -4,26 +4,55 @@ A Go toolkit for building RESTful services at NYCU SDC. Provides a CLI scaffolde
 
 ## Table of Contents
 
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
+- [summer](#summer)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Installation](#installation)
+    - [CLI tool](#cli-tool)
+    - [Library packages](#library-packages)
+  - [Quick Start](#quick-start)
     - [CLI: Scaffold a new project](#cli-scaffold-a-new-project)
     - [Run the example](#run-the-example)
-- [Packages](#packages)
+  - [Packages](#packages)
     - [pkg/log](#pkglog)
+      - [Logger configs](#logger-configs)
+      - [WithContext](#withcontext)
     - [pkg/handler](#pkghandler)
+      - [Sentinel errors](#sentinel-errors)
+      - [Structured error types](#structured-error-types)
+      - [ParseAndValidateRequestBody](#parseandvalidaterequestbody)
+      - [WriteJSONResponse](#writejsonresponse)
+      - [ParseUUID](#parseuuid)
     - [pkg/problem](#pkgproblem)
+      - [HttpWriter](#httpwriter)
+      - [WriteError / WriteErrorWithRequest](#writeerror--writeerrorwithrequest)
+      - [Error-to-HTTP mapping (automatic)](#error-to-http-mapping-automatic)
+      - [Problem constructors](#problem-constructors)
     - [pkg/middleware](#pkgmiddleware)
+      - [Building a middleware set](#building-a-middleware-set)
+      - [Applying to a handler](#applying-to-a-handler)
     - [pkg/trace](#pkgtrace)
+      - [TraceMiddleware](#tracemiddleware)
+      - [RecoverMiddleware](#recovermiddleware)
+      - [PanicRecoveryError](#panicrecoveryerror)
     - [pkg/cors](#pkgcors)
     - [pkg/database](#pkgdatabase)
+      - [Migrations](#migrations)
+      - [PostgreSQL error wrapping](#postgresql-error-wrapping)
+      - [MSSQL error wrapping](#mssql-error-wrapping)
+      - [Transaction helpers](#transaction-helpers)
+        - [WithTransactionQueries](#withtransactionqueries)
+        - [WithTransaction](#withtransaction)
     - [pkg/pagination](#pkgpagination)
+      - [Factory](#factory)
+      - [GetRequest](#getrequest)
+      - [NewResponse](#newresponse)
     - [pkg/config](#pkgconfig)
-- [Wiring Everything Together](#wiring-everything-together)
-- [Project Layout](#project-layout)
-- [sqlc Integration](#sqlc-integration)
-- [Contributing](#contributing)
-- [License](#license)
+  - [Wiring Everything Together](#wiring-everything-together)
+  - [Project Layout](#project-layout)
+  - [sqlc Integration](#sqlc-integration)
+  - [Contributing](#contributing)
+  - [License](#license)
 
 ---
 
@@ -32,7 +61,7 @@ A Go toolkit for building RESTful services at NYCU SDC. Provides a CLI scaffolde
 - **CLI scaffolder** — `summer init` creates a ready-to-run project with a health endpoint
 - **Structured logging** — Zap-based logger wired for JSON output in production and pretty console output in development, with automatic trace/span ID injection
 - **Tracing** — OpenTelemetry tracing middleware with upstream context propagation
-- **Database** — pgx + golang-migrate helpers for PostgreSQL; MSSQL also supported
+- **Database** — pgx + golang-migrate helpers for PostgreSQL; MSSQL also supported; transaction helpers for pgx and sqlc
 - **Validation** — `go-playground/validator` wrappers with consistent RFC 9457 problem-detail error responses
 - **Middleware set** — composable middleware chain builder compatible with `net/http`
 - **Pagination** — generic, type-safe paginated list helper
@@ -67,6 +96,7 @@ summer -b main init
 ```
 
 summer will ask for a project name (used as the Go module name in `go.mod`). It creates:
+
 ```
 .
 ├── cmd/
@@ -248,16 +278,16 @@ writer.WriteErrorWithRequest(ctx, r, w, err, logger)
 
 #### Error-to-HTTP mapping (automatic)
 
-| Error | HTTP Status |
-|---|---|
-| `handlerutil.NotFoundError` / `ErrNotFound` | 404 Not Found |
-| `handlerutil.ValidationError` / `validator.ValidationErrors` / `ErrValidation` | 400 Bad Request |
-| `handlerutil.ErrUnauthorized` / `ErrCredentialInvalid` | 401 Unauthorized |
-| `handlerutil.ErrForbidden` | 403 Forbidden |
-| `handlerutil.ErrUserAlreadyExists` / `ErrInvalidUUID` | 400 Bad Request |
-| `databaseutil.InternalServerError` | 500 Internal Server Error |
-| `pagination.ErrInvalidPageOrSize` / `ErrInvalidSortingField` | 400 Bad Request |
-| anything else | 500 Internal Server Error |
+| Error                                                                          | HTTP Status               |
+| ------------------------------------------------------------------------------ | ------------------------- |
+| `handlerutil.NotFoundError` / `ErrNotFound`                                    | 404 Not Found             |
+| `handlerutil.ValidationError` / `validator.ValidationErrors` / `ErrValidation` | 400 Bad Request           |
+| `handlerutil.ErrUnauthorized` / `ErrCredentialInvalid`                         | 401 Unauthorized          |
+| `handlerutil.ErrForbidden`                                                     | 403 Forbidden             |
+| `handlerutil.ErrUserAlreadyExists` / `ErrInvalidUUID`                          | 400 Bad Request           |
+| `databaseutil.InternalServerError`                                             | 500 Internal Server Error |
+| `pagination.ErrInvalidPageOrSize` / `ErrInvalidSortingField`                   | 400 Bad Request           |
+| anything else                                                                  | 500 Internal Server Error |
 
 #### Problem constructors
 
@@ -369,7 +399,7 @@ srv := &http.Server{Handler: entrypoint}
 **Import path:** `github.com/NYCU-SDC/summer/pkg/database`  
 **Package name:** `databaseutil`
 
-Helpers for PostgreSQL (pgx) and MSSQL: schema migrations and error wrapping.
+Helpers for PostgreSQL (pgx) and MSSQL: schema migrations, transactions, and error wrapping.
 
 #### Migrations
 
@@ -399,14 +429,14 @@ err = databaseutil.WrapDBErrorWithKeyValue(err, "users", "id", id.String(), logg
 
 Mapped error types:
 
-| Database error | Wrapped as |
-|---|---|
-| `pgx.ErrNoRows` | `handlerutil.ErrNotFound` or `NotFoundError` |
-| `context.DeadlineExceeded` | `ErrQueryTimeout` |
-| PG code `23505` | `ErrUniqueViolation` |
-| PG code `23503` | `ErrForeignKeyViolation` |
-| PG code `40P01` | `ErrDeadlockDetected` |
-| anything else | `InternalServerError{Source: err}` |
+| Database error             | Wrapped as                                   |
+| -------------------------- | -------------------------------------------- |
+| `pgx.ErrNoRows`            | `handlerutil.ErrNotFound` or `NotFoundError` |
+| `context.DeadlineExceeded` | `ErrQueryTimeout`                            |
+| PG code `23505`            | `ErrUniqueViolation`                         |
+| PG code `23503`            | `ErrForeignKeyViolation`                     |
+| PG code `40P01`            | `ErrDeadlockDetected`                        |
+| anything else              | `InternalServerError{Source: err}`           |
 
 #### MSSQL error wrapping
 
@@ -415,6 +445,75 @@ Same API, same mapped error types, for Microsoft SQL Server:
 ```go
 err = databaseutil.WrapMSSQLError(err, logger, "create record")
 err = databaseutil.WrapMSSQLErrorWithKeyValue(err, "users", "id", id.String(), logger, "get user")
+```
+
+#### Transaction helpers
+
+`WithTransaction` and `WithTransactionQueries` run a callback inside a `pgx.Tx` lifecycle. Both `*pgxpool.Pool` and `pgx.Tx` satisfy `DBTX`, the minimal surface sqlc-generated `Queries` expect.
+
+- If `db` is already `pgx.Tx`, the callback runs on that transaction — no begin/commit/rollback here.
+- Otherwise `db` must implement `TxBeginner` (e.g. `*pgxpool.Pool`): begin, callback, commit on success, rollback on error or panic.
+- Return a non-nil error from the callback to abort and roll back. Do not call `Commit` or `Rollback` inside the callback unless you have a deliberate sub-transaction design.
+- Each `Run()` or `RunWithDBTx()` call is one transaction. Put every query that must commit or roll back together inside that single callback — do not split related work across multiple calls.
+
+```go
+// Incorrect — two separate transactions; Debit may commit even if Credit fails
+err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    Run(func(qtx *user.Queries) error {
+        return qtx.Debit(ctx, params)
+    })
+if err != nil {
+    return err
+}
+return databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    Run(func(qtx *user.Queries) error {
+        return qtx.Credit(ctx, creditParams)
+    })
+
+// Correct — Debit and Credit share one transaction
+err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    Run(func(qtx *user.Queries) error {
+        err := qtx.Debit(ctx, params)
+        if err != nil {
+            return databaseutil.WrapDBError(err, logger, "debit account")
+        }
+        return qtx.Credit(ctx, creditParams)
+    })
+```
+
+| API                                      | Use when                                               |
+| ---------------------------------------- | ------------------------------------------------------ |
+| `WithTransactionQueries` + `Run`         | All database access goes through sqlc queries          |
+| `WithTransactionQueries` + `RunWithDBTx` | The callback must pass `pgx.Tx` to another service     |
+| `WithTransaction` + `Run`                | The callback needs raw `pgx.Tx` without sqlc rebinding |
+
+Begin/commit failures are wrapped with `WrapDBError`. Unsupported connections return `ErrTransactionNotSupported`.
+
+##### WithTransactionQueries
+
+Prefer this for sqlc call sites. `Run` binds `queries.WithTx(tx)` for you; use it when every database access in the callback goes through `qtx` (see the example above). `RunWithDBTx` also passes `pgx.Tx` when another service must share the same transaction:
+
+```go
+err := databaseutil.WithTransactionQueries(ctx, pool, logger, queries).
+    RunWithDBTx(func(tx pgx.Tx, qtx *user.Queries) error {
+        err := audit.Log(ctx, tx, event)
+        if err != nil {
+            return err
+        }
+
+        return qtx.RecordTransfer(ctx, transferParams)
+    })
+```
+
+##### WithTransaction
+
+Use when the callback needs raw `pgx.Tx` without sqlc rebinding:
+
+```go
+err := databaseutil.WithTransaction(ctx, pool, logger).Run(func(tx pgx.Tx) error {
+    _, err := tx.Exec(ctx, "UPDATE accounts SET balance = balance - $1 WHERE id = $2", amount, id)
+    return err
+})
 ```
 
 ---
@@ -578,6 +677,7 @@ func listUsersHandler(w http.ResponseWriter, r *http.Request) {
 ## Project Layout
 
 When you use `summer init`, your service should follow this layout:
+
 ```
 .
 ├── cmd/
