@@ -1,0 +1,53 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+      - run: go build ./...
+
+  vet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+      - run: go vet ./...
+
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+      - run: gofmt -l . | tee /tmp/fmt.txt && test ! -s /tmp/fmt.txt
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+      - run: go test ./... -race -cover
+
+  cli-scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25
+      - name: CLI scaffolds a buildable project
+        run: |
+          go build -o /tmp/summer ./cmd/summer
+          cd $(mktemp -d)
+          /tmp/summer -b main init <<< "testproject"
+          go mod tidy
+          go build ./...
