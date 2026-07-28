@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: 1.25
+          go-version: 1.26
       - run: go vet ./...
 
   format:
@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: 1.25
+          go-version: 1.26
       - run: gofmt -l . | tee /tmp/fmt.txt && test ! -s /tmp/fmt.txt
 
   test:
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: 1.25
+          go-version: 1.26
       - run: go test ./... -race -cover
 
   cli-scaffold:
@@ -46,7 +46,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: 1.25
+          go-version: 1.26
       - name: CLI scaffolds a buildable project
         run: |
           go build -o /tmp/summer ./cmd/summer
