@@ -3,12 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/spf13/cobra"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -347,7 +348,12 @@ func copyFileContents(srcFile, dstFile string) (err error) {
 	if err != nil {
 		return
 	}
-	defer in.Close()
+	defer func(in *os.File) {
+		err := in.Close()
+		if err != nil {
+			return
+		}
+	}(in)
 
 	info, err := in.Stat()
 	if err != nil {
@@ -363,7 +369,10 @@ func copyFileContents(srcFile, dstFile string) (err error) {
 		if err != nil {
 			_ = os.Remove(dstFile)
 		}
-		out.Close()
+		err := out.Close()
+		if err != nil {
+			return
+		}
 	}()
 
 	_, err = io.Copy(out, in)
