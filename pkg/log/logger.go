@@ -75,17 +75,6 @@ func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
 	return logger
 }
 
-// prettyEncodeCaller add padding to the caller string
-func prettyEncodeCaller(caller zapcore.EntryCaller, enc zapcore.PrimitiveArrayEncoder) {
-	const fixedWidth = 25
-	callerStr := caller.TrimmedPath()
-	if len(callerStr) < fixedWidth {
-		callerStr += strings.Repeat(" ", fixedWidth-len(callerStr))
-	}
-	callerStr += "\t"
-	enc.AppendString(callerStr)
-}
-
 // relativePrettyCallerEncoder returns a zapcore.CallerEncoder that formats the caller path relative to the root directory
 // it enables clickable links in the GoLand console output
 func relativePrettyCallerEncoder(rootDir string) zapcore.CallerEncoder {
