@@ -13,10 +13,11 @@ import (
 // context keys "user_id", "username", and "name". Those user fields are emitted
 // as user_id, username, and display-name for compatibility with older callers.
 //
-// Deprecated: use Constructs for the standard context-first logging path, or use
-// WithTraceContext and WithUserContext directly when decorating a logger. New
-// code should write user and request values with WithUserID, WithUsername,
-// WithDisplayName, and WithRequestID instead of raw string context keys.
+// This is the legacy path. New code should use Constructs for the standard
+// context-first logging path, or WithTraceContext and WithUserContext directly
+// when decorating a logger, and write user and request values with WithUserID,
+// WithUsername, WithDisplayName, and WithRequestID instead of raw string
+// context keys.
 func WithContext(ctx context.Context, logger *zap.Logger) *zap.Logger {
 	if ctx == nil {
 		return logger

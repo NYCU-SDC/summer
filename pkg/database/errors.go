@@ -35,11 +35,14 @@ func (e InternalServerError) Unwrap() error {
 	return e.Source
 }
 
-// Deprecated: database errors are classified here without logging. Return domain errors directly for new code.
+// WrapDBError is the legacy helper: it logs the error and classifies it into a domain error.
+// New code should return domain errors directly and log through pkg/log.
 func WrapDBError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
 	}
+
+	logger.WithOptions(zap.AddCallerSkip(1)).Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -62,18 +65,26 @@ func WrapDBError(err error, logger *zap.Logger, operation string) error {
 		}
 	}
 
+	isUnknownError := false
 	if wrappedErr == nil {
 		wrappedErr = InternalServerError{Source: err}
+		isUnknownError = true
 	}
+
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn("Wrapped database error", zap.Error(wrappedErr), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
 
-// Deprecated: database errors are classified here without logging. Return domain errors directly for new code.
+// WrapDBErrorWithKeyValue is the legacy helper: it logs the error and classifies it into a domain error,
+// using table/key/value to build the not-found error. New code should return domain errors directly
+// and log through pkg/log.
 func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
 	}
+
+	logger.WithOptions(zap.AddCallerSkip(1)).Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -96,9 +107,13 @@ func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Lo
 		}
 	}
 
+	isUnknownError := false
 	if wrappedErr == nil {
 		wrappedErr = InternalServerError{Source: err}
+		isUnknownError = true
 	}
+
+	logger.WithOptions(zap.AddCallerSkip(1)).Warn("Wrapped database error with key value", zap.Error(wrappedErr), zap.String("table", table), zap.String("key", key), zap.String("value", value), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }

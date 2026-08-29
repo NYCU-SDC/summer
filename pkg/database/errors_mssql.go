@@ -19,11 +19,14 @@ const (
 	MSSQLErrDeadlockDetected    = 1205 // Deadlock detected
 )
 
-// Deprecated: database errors are classified here without logging. Return domain errors directly for new code.
+// WrapMSSQLError is the legacy helper: it logs the error and classifies it into a domain error.
+// New code should return domain errors directly and log through pkg/log.
 func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
 	}
+
+	logger.Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -46,18 +49,26 @@ func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 		}
 	}
 
+	isUnknownError := false
 	if wrappedErr == nil {
 		wrappedErr = InternalServerError{Source: err}
+		isUnknownError = true
 	}
+
+	logger.Warn("Wrapped database error", zap.Error(wrappedErr), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
 
-// Deprecated: database errors are classified here without logging. Return domain errors directly for new code.
+// WrapMSSQLErrorWithKeyValue is the legacy helper: it logs the error and classifies it into a domain error,
+// using table/key/value to build the not-found error. New code should return domain errors directly
+// and log through pkg/log.
 func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
 	}
+
+	logger.Error("Failed to "+operation, zap.Error(err))
 
 	var wrappedErr error
 
@@ -80,9 +91,13 @@ func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap
 		}
 	}
 
+	isUnknownError := false
 	if wrappedErr == nil {
 		wrappedErr = InternalServerError{Source: err}
+		isUnknownError = true
 	}
+
+	logger.Warn("Wrapped database error with key value", zap.Error(wrappedErr), zap.String("table", table), zap.String("key", key), zap.String("value", value), zap.String("operation", operation), zap.Bool("unknown_error", isUnknownError))
 
 	return wrappedErr
 }
