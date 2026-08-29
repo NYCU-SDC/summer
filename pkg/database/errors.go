@@ -31,6 +31,12 @@ func (e InternalServerError) Error() string {
 	return fmt.Sprintf("internal server error: %s", e.Source.Error())
 }
 
+func (e InternalServerError) Unwrap() error {
+	return e.Source
+}
+
+// WrapDBError is the legacy helper: it logs the error and classifies it into a domain error.
+// New code should return domain errors directly and log through pkg/log.
 func WrapDBError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
@@ -42,19 +48,19 @@ func WrapDBError(err error, logger *zap.Logger, operation string) error {
 
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		wrappedErr = fmt.Errorf("%w: %v", errorPkg.ErrNotFound, err)
+		wrappedErr = fmt.Errorf("%w: %w", errorPkg.ErrNotFound, err)
 	case errors.Is(err, context.DeadlineExceeded):
-		wrappedErr = fmt.Errorf("%w: %v", ErrQueryTimeout, err)
+		wrappedErr = fmt.Errorf("%w: %w", ErrQueryTimeout, err)
 	default:
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			switch pgErr.Code {
 			case PGErrUniqueViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrUniqueViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrUniqueViolation, err)
 			case PGErrForeignKeyViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrForeignKeyViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 			case PGErrDeadlockDetected:
-				wrappedErr = fmt.Errorf("%w: %v", ErrDeadlockDetected, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrDeadlockDetected, err)
 			}
 		}
 	}
@@ -70,6 +76,9 @@ func WrapDBError(err error, logger *zap.Logger, operation string) error {
 	return wrappedErr
 }
 
+// WrapDBErrorWithKeyValue is the legacy helper: it logs the error and classifies it into a domain error,
+// using table/key/value to build the not-found error. New code should return domain errors directly
+// and log through pkg/log.
 func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
@@ -83,17 +92,17 @@ func WrapDBErrorWithKeyValue(err error, table, key, value string, logger *zap.Lo
 	case errors.Is(err, pgx.ErrNoRows):
 		wrappedErr = errorPkg.NewNotFoundError(table, key, value, "")
 	case errors.Is(err, context.DeadlineExceeded):
-		wrappedErr = fmt.Errorf("%w: %v", ErrQueryTimeout, err)
+		wrappedErr = fmt.Errorf("%w: %w", ErrQueryTimeout, err)
 	default:
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			switch pgErr.Code {
 			case PGErrUniqueViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrUniqueViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrUniqueViolation, err)
 			case PGErrForeignKeyViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrForeignKeyViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 			case PGErrDeadlockDetected:
-				wrappedErr = fmt.Errorf("%w: %v", ErrDeadlockDetected, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrDeadlockDetected, err)
 			}
 		}
 	}

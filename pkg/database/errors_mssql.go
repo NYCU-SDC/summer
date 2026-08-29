@@ -19,6 +19,8 @@ const (
 	MSSQLErrDeadlockDetected    = 1205 // Deadlock detected
 )
 
+// WrapMSSQLError is the legacy helper: it logs the error and classifies it into a domain error.
+// New code should return domain errors directly and log through pkg/log.
 func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
@@ -30,19 +32,19 @@ func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		wrappedErr = fmt.Errorf("%w: %v", errorPkg.ErrNotFound, err)
+		wrappedErr = fmt.Errorf("%w: %w", errorPkg.ErrNotFound, err)
 	case errors.Is(err, context.DeadlineExceeded):
-		wrappedErr = fmt.Errorf("%w: %v", ErrQueryTimeout, err)
+		wrappedErr = fmt.Errorf("%w: %w", ErrQueryTimeout, err)
 	default:
 		var mssqlErr mssql.Error
 		if errors.As(err, &mssqlErr) {
 			switch mssqlErr.Number {
 			case MSSQLErrUniqueViolation, MSSQLErrUniqueIndex:
-				wrappedErr = fmt.Errorf("%w: %v", ErrUniqueViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrUniqueViolation, err)
 			case MSSQLErrForeignKeyViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrForeignKeyViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 			case MSSQLErrDeadlockDetected:
-				wrappedErr = fmt.Errorf("%w: %v", ErrDeadlockDetected, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrDeadlockDetected, err)
 			}
 		}
 	}
@@ -58,6 +60,9 @@ func WrapMSSQLError(err error, logger *zap.Logger, operation string) error {
 	return wrappedErr
 }
 
+// WrapMSSQLErrorWithKeyValue is the legacy helper: it logs the error and classifies it into a domain error,
+// using table/key/value to build the not-found error. New code should return domain errors directly
+// and log through pkg/log.
 func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap.Logger, operation string) error {
 	if err == nil {
 		return nil
@@ -71,17 +76,17 @@ func WrapMSSQLErrorWithKeyValue(err error, table, key, value string, logger *zap
 	case errors.Is(err, sql.ErrNoRows):
 		wrappedErr = errorPkg.NewNotFoundError(table, key, value, "")
 	case errors.Is(err, context.DeadlineExceeded):
-		wrappedErr = fmt.Errorf("%w: %v", ErrQueryTimeout, err)
+		wrappedErr = fmt.Errorf("%w: %w", ErrQueryTimeout, err)
 	default:
 		var mssqlErr mssql.Error
 		if errors.As(err, &mssqlErr) {
 			switch mssqlErr.Number {
 			case MSSQLErrUniqueViolation, MSSQLErrUniqueIndex:
-				wrappedErr = fmt.Errorf("%w: %v", ErrUniqueViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrUniqueViolation, err)
 			case MSSQLErrForeignKeyViolation:
-				wrappedErr = fmt.Errorf("%w: %v", ErrForeignKeyViolation, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrForeignKeyViolation, err)
 			case MSSQLErrDeadlockDetected:
-				wrappedErr = fmt.Errorf("%w: %v", ErrDeadlockDetected, err)
+				wrappedErr = fmt.Errorf("%w: %w", ErrDeadlockDetected, err)
 			}
 		}
 	}
