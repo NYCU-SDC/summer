@@ -1,6 +1,7 @@
 package logutil
 
 import (
+	"context"
 	"testing"
 
 	errutil "github.com/NYCU-SDC/summer/pkg/error"
@@ -9,12 +10,17 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
+// nilContext is passed where a test deliberately exercises the nil-context
+// fallback in SetupFlow. Using a variable keeps staticcheck's SA1012 (do not
+// pass a nil Context) from firing on an intentional case.
+var nilContext context.Context
+
 func TestSetupFlowInitializesContextAndLogger(t *testing.T) {
 	core, logs := observer.New(zapcore.InfoLevel)
 	baseLogger := zap.New(core)
 
 	ctx, logger := SetupFlow(
-		nil,
+		nilContext,
 		baseLogger,
 		"user.create",
 		zap.String("request.id", "req-7"),
@@ -63,7 +69,7 @@ func TestSetupFlowInitializesContextAndLogger(t *testing.T) {
 }
 
 func TestSetupFlowUsesSafeDefaults(t *testing.T) {
-	ctx, logger := SetupFlow(nil, nil, "")
+	ctx, logger := SetupFlow(nilContext, nil, "")
 
 	if ctx == nil {
 		t.Fatal("SetupFlow returned nil context")
