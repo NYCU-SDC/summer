@@ -1,0 +1,49 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26
+      - run: go build ./...
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26
+      - run: go test ./... -race -cover
+
+  cli-scaffold:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: 1.26
+      - name: CLI scaffolds a buildable project
+        run: |
+          go build -o /tmp/summer ./cmd/summer
+          cd $(mktemp -d)
+          /tmp/summer -b main init <<< "testproject"
+          go mod tidy
+          go build -o /tmp/build/ ./...
